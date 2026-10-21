@@ -1,28 +1,50 @@
 {
-  "name": "Taskly",
+  "name": "Taskly — carnet, tâches et emploi du temps",
   "short_name": "Taskly",
-  "description": "Carnet personnel d'apprentissage et gestion de tâches",
-  "theme_color": "#171717",
-  "background_color": "#ffffff",
+  "description": "Carnet personnel d'apprentissage, gestion de tâches et emploi du temps — 100% hors-ligne.",
+  "lang": "fr",
+  "dir": "ltr",
+  "theme_color": "#4f46e5",
+  "background_color": "#f5f6fb",
   "display": "standalone",
   "orientation": "portrait-primary",
   "scope": "/",
   "start_url": "/",
+  "categories": ["productivity", "education", "utilities"],
   "icons": [
-    {
-      "src": "/favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
-    },
     {
       "src": "/pwa-192x192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any"
     },
     {
       "src": "/pwa-512x512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.ico",
+      "type": "image/x-icon",
+      "sizes": "64x64 32x32 24x24 16x16"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mes tâches",
+      "short_name": "Tâches",
+      "url": "/tasks"
+    },
+    {
+      "name": "Emploi du temps",
+      "short_name": "Agenda",
+      "url": "/schedule"
+    },
+    {
+      "name": "Carnet",
+      "short_name": "Carnet",
+      "url": "/categories"
     }
   ]
 }

@@ -1,41 +1,76 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { db, type Task } from "@/lib/db";
+import { useLiveQuery } from "@/lib/useLiveQuery";
 import TaskItem from "@/components/TaskItem";
 
 type FilterStatus = "all" | "completed" | "pending";
+type DateFilter = "all" | "with-date" | "without-date" | "today";
 
 interface Props {
   initialStatusFilter?: FilterStatus;
-  initialDateFilter?: "all" | "with-date" | "without-date" | "today";
+  initialDateFilter?: DateFilter;
+}
+
+const STATUS_FILTERS: { value: FilterStatus; label: string }[] = [
+  { value: "all", label: "Toutes" },
+  { value: "pending", label: "À faire" },
+  { value: "completed", label: "Faites" },
+];
+
+const DATE_FILTERS: { value: DateFilter; label: string }[] = [
+  { value: "all", label: "Toutes" },
+  { value: "with-date", label: "Avec date" },
+  { value: "without-date", label: "Sans date" },
+  { value: "today", label: "Aujourd'hui" },
+];
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-full px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
+        active
+          ? "bg-primary-soft text-primary"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
 }
 
 export default function TaskList({
   initialStatusFilter = "all",
   initialDateFilter = "all",
-}) {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [statusFilter, setStatusFilter] = useState<FilterStatus>(initialStatusFilter);
-  const [dateFilter, setDateFilter] = useState<"all" | "with-date" | "without-date" | "today">(initialDateFilter);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+}: Props) {
+  const [statusFilter, setStatusFilter] =
+    useState<FilterStatus>(initialStatusFilter);
+  const [dateFilter, setDateFilter] =
+    useState<DateFilter>(initialDateFilter);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const all = await db.tasks.toArray();
-        all.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-        setTasks(all);
-      } catch (e) {
-        setError("Impossible de charger les tâches.");
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
+  const { data: rawTasks, loading } = useLiveQuery<Task[]>(
+    () => db.tasks.toArray(),
+    []
+  );
+
+  const tasks = useMemo(() => {
+    const list = rawTasks ?? [];
+    return [...list].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+    );
+  }, [rawTasks]);
 
   const filteredTasks = useMemo(() => {
     let result = tasks;
@@ -46,19 +81,18 @@ export default function TaskList({
       result = result.filter((t) => !t.completed);
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    if (dateFilter !== "all") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-    if (dateFilter === "with-date") {
-      result = result.filter((t) => t.dueDate !== null);
-    } else if (dateFilter === "without-date") {
-      result = result.filter((t) => t.dueDate === null);
-    } else if (dateFilter === "today") {
       result = result.filter((t) => {
+        if (dateFilter === "with-date") return t.dueDate !== null;
+        if (dateFilter === "without-date") return t.dueDate === null;
+
         if (!t.dueDate) return false;
-        const d = new Date(t.dueDate);
-        d.setHours(0, 0, 0, 0);
-        return d.getTime() === today.getTime();
+        const due = new Date(t.dueDate);
+        due.setHours(0, 0, 0, 0);
+        return due.getTime() === today.getTime();
       });
     }
 
@@ -68,130 +102,102 @@ export default function TaskList({
   const stats = useMemo(() => {
     const total = tasks.length;
     const completed = tasks.filter((t) => t.completed).length;
-    const pending = total - completed;
-    return { total, completed, pending };
+    return { total, completed, pending: total - completed };
   }, [tasks]);
 
-  if (loading) {
-    return <div className="min-h-[200px] flex items-center justify-center text-muted-opacity">Chargement…</div>;
-  }
+  const progress = stats.total
+    ? Math.round((stats.completed / stats.total) * 100)
+    : 0;
 
   return (
-    <section className="py-6">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Stats */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-6">
-          <div className="flex-1 rounded-lg border bg-card/50 py-3 text-sm">
-            <div className="text-primary/60 text-xs font-medium uppercase tracking-wider">Total</div>
-            <div className="font-medium text-foreground">{stats.total}</div>
+    <section className="mt-8">
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Total", value: stats.total, className: "text-foreground" },
+          {
+            label: "À faire",
+            value: stats.pending,
+            className: "text-info",
+          },
+          {
+            label: "Faites",
+            value: stats.completed,
+            className: "text-success",
+          },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+          >
+            <p className="text-[11px] font-medium tracking-wide text-muted-opacity uppercase">
+              {stat.label}
+            </p>
+            <p className={`mt-1 text-2xl font-semibold ${stat.className}`}>
+              {stat.value}
+            </p>
           </div>
-          <div className="flex-1 rounded-lg border bg-card/50 py-3 text-sm">
-            <div className="text-green-500 text-xs font-medium uppercase tracking-wider">Fait</div>
-            <div className="font-medium text-green-600">{stats.completed}</div>
-          </div>
-          <div className="flex-1 rounded-lg border bg-card/50 py-3 text-sm">
-            <div className="text-blue-500 text-xs font-medium uppercase tracking-wider">À faire</div>
-            <div className="font-medium text-blue-600">{stats.pending}</div>
-          </div>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 rounded bg-red-50 border border-red-100 text-red-700 text-sm">
-            {error}
-          </div>
-        )}
-
-        {/* Filtres */}
-        <div className="flex flex-col sm:flex-row gap-2 mb-6">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setStatusFilter("all")}
-              className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                statusFilter === "all"
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-800"
-              }`}
-            >
-              Tous
-            </button>
-            <button
-              onClick={() => setStatusFilter("pending")}
-              className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                statusFilter === "pending"
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-800"
-              }`}
-            >
-              À faire
-            </button>
-            <button
-              onClick={() => setStatusFilter("completed")}
-              className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                statusFilter === "completed"
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-800"
-              }`}
-            >
-              Fait
-            </button>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => setDateFilter("all")}
-              className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                dateFilter === "all"
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-800"
-              }`}
-            >
-              Toutes dates
-            </button>
-            <button
-              onClick={() => setDateFilter("with-date")}
-              className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                dateFilter === "with-date"
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-800"
-              }`}
-            >
-              Avec date
-            </button>
-            <button
-              onClick={() => setDateFilter("without-date")}
-              className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                dateFilter === "without-date"
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-800"
-              }`}
-            >
-              Sans date
-            </button>
-            <button
-              onClick={() => setDateFilter("today")}
-              className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                dateFilter === "today"
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-800"
-              }`}
-            >
-              Aujourd'hui
-            </button>
-          </div>
-        </div>
-
-        {filteredTasks.length === 0 ? (
-          <div className="py-12 text-center text-muted-foreground">
-            Aucune tâche correspondante.
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {filteredTasks.map((task) => (
-              <TaskItem key={task.id} task={task} onUpdate={() => {}} />
-            ))}
-          </div>
-        )}
+        ))}
       </div>
+
+      {stats.total > 0 && (
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-success transition-[width] duration-300"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      )}
+
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-1.5">
+          {STATUS_FILTERS.map((filter) => (
+            <Chip
+              key={filter.value}
+              active={statusFilter === filter.value}
+              onClick={() => setStatusFilter(filter.value)}
+            >
+              {filter.label}
+            </Chip>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {DATE_FILTERS.map((filter) => (
+            <Chip
+              key={filter.value}
+              active={dateFilter === filter.value}
+              onClick={() => setDateFilter(filter.value)}
+            >
+              {filter.label}
+            </Chip>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="mt-4 space-y-2">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-20 animate-pulse rounded-xl border border-border bg-card/60"
+            />
+          ))}
+        </div>
+      ) : filteredTasks.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-dashed border-border bg-card/40 px-6 py-12 text-center">
+          <p className="text-sm font-medium text-foreground">
+            Aucune tâche à afficher
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Ajoutez une tâche ou changez de filtre pour en voir apparaître.
+          </p>
+        </div>
+      ) : (
+        <ul className="mt-4 space-y-2">
+          {filteredTasks.map((task) => (
+            <TaskItem key={task.id} task={task} />
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

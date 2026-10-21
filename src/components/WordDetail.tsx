@@ -1,50 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { db, type WordEntry } from "@/lib/db";
 import Link from "next/link";
+import { db, type WordEntry } from "@/lib/db";
+import { useLiveQuery } from "@/lib/useLiveQuery";
+import { ArrowLeftIcon } from "@/components/icons";
 
 interface Props {
   wordId: number;
 }
 
 export default function WordDetail({ wordId }: Props) {
-  const [word, setWord] = useState<WordEntry | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadWord();
-  }, [wordId]);
-
-  async function loadWord() {
-    try {
-      const w = await db.words.get(wordId);
-      if (!w) {
-        setError("Mot introuvable.");
-        return;
-      }
-      setWord(w);
-    } catch (e) {
-      setError("Impossible de charger le mot.");
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { data: word, loading } = useLiveQuery<WordEntry | undefined>(
+    () => db.words.get(wordId),
+    [wordId]
+  );
 
   if (loading) {
-    return <div className="text-center py-20">Chargement...</div>;
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="h-56 animate-pulse rounded-2xl border border-border bg-card/60" />
+      </div>
+    );
   }
 
-  if (error || !word) {
+  if (!word) {
     return (
-      <div className="max-w-md mx-auto py-10 text-center">
-        <p className="text-red-600 dark:text-red-400">{error || "Mot introuvable."}</p>
+      <div className="mx-auto max-w-2xl px-4 py-20 text-center sm:px-6 lg:px-8">
+        <p className="text-base font-medium text-foreground">Mot introuvable</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Cette entrée a peut-être été supprimée.
+        </p>
         <Link
           href="/categories"
-          className="mt-4 inline-block text-blue-600 dark:text-blue-400 hover:underline"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover"
         >
+          <ArrowLeftIcon className="h-4 w-4" />
           Retour aux catégories
         </Link>
       </div>
@@ -52,46 +42,74 @@ export default function WordDetail({ wordId }: Props) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="mb-6 flex items-center gap-2">
-        <Link
-          href={`/categories/${word.categoryId}`}
-          className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-        >
-          ← Retour à la catégorie
-        </Link>
-      </div>
+    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
+      <Link
+        href={`/categories/${word.categoryId}`}
+        className="inline-flex items-center gap-1.5 rounded-lg text-sm text-muted-foreground transition-colors hover:text-primary"
+      >
+        <ArrowLeftIcon className="h-4 w-4" />
+        Retour à la catégorie
+      </Link>
 
-      <div className="bg-white dark:bg-gray-800 p-6 rounded border border-gray-200 dark:border-gray-700 shadow-sm">
-        <h1 className="text-3xl font-semibold text-foreground mb-2">{word.term}</h1>
+      <article className="mt-5 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <header className="border-b border-border bg-gradient-to-br from-primary-soft to-transparent px-6 py-8">
+          <p className="text-xs font-medium tracking-wide text-primary uppercase">
+            Mot ou phrase
+          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            {word.term}
+          </h1>
+        </header>
 
-        {word.definition && (
-          <div className="mb-4">
-            <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-              Signification
-            </h2>
-            <p className="text-lg text-gray-800 dark:text-gray-200 italic">
-              {word.definition}
+        <div className="space-y-6 px-6 py-6">
+          {word.definition && (
+            <section>
+              <h2 className="text-xs font-semibold tracking-wide text-muted-opacity uppercase">
+                Signification
+              </h2>
+              <p className="mt-2 text-lg leading-relaxed text-foreground italic">
+                {word.definition}
+              </p>
+            </section>
+          )}
+
+          {word.usage && (
+            <section>
+              <h2 className="text-xs font-semibold tracking-wide text-muted-opacity uppercase">
+                Comment l&apos;utiliser
+              </h2>
+              <p className="mt-2 rounded-xl border border-border bg-background px-4 py-3 text-base leading-relaxed text-foreground">
+                {word.usage}
+              </p>
+            </section>
+          )}
+
+          {!word.definition && !word.usage && (
+            <p className="text-sm text-muted-foreground">
+              Aucune signification ni exemple n&apos;a encore été ajouté.
             </p>
-          </div>
-        )}
-
-        {word.usage && (
-          <div className="mb-4">
-            <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-              Comment l'utiliser
-            </h2>
-            <p className="text-lg text-gray-800 dark:text-gray-200">
-              {word.usage}
-            </p>
-          </div>
-        )}
-
-        <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 flex justify-between">
-          <span>Créé le {word.createdAt.toLocaleDateString("fr-FR")}</span>
-          <span>Modifié le {word.updatedAt.toLocaleDateString("fr-FR")}</span>
+          )}
         </div>
-      </div>
+
+        <footer className="flex flex-col gap-1 border-t border-border bg-background/60 px-6 py-4 text-xs text-muted-opacity sm:flex-row sm:justify-between">
+          <span>
+            Créé le{" "}
+            {word.createdAt.toLocaleDateString("fr-FR", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </span>
+          <span>
+            Modifié le{" "}
+            {word.updatedAt.toLocaleDateString("fr-FR", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </span>
+        </footer>
+      </article>
     </div>
   );
 }

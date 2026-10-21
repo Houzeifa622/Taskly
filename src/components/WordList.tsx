@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { db, type WordEntry } from "@/lib/db";
 import Link from "next/link";
+import { useMemo, useState } from "react";
+import { db, type WordEntry } from "@/lib/db";
+import { useLiveQuery } from "@/lib/useLiveQuery";
+import { ArrowRightIcon, TrashIcon } from "@/components/icons";
 
 interface Props {
   categoryId: number;
@@ -10,97 +12,125 @@ interface Props {
 }
 
 export default function WordList({ categoryId, categoryName }: Props) {
-  const [words, setWords] = useState<WordEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    loadWords();
-  }, [categoryId]);
+  const { data: rawWords, loading } = useLiveQuery<WordEntry[]>(
+    () => db.words.where("categoryId").equals(categoryId).toArray(),
+    [categoryId]
+  );
 
-  async function loadWords() {
-    try {
-      const all = await db.words.where("categoryId").equals(categoryId).toArray();
-      all.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-      setWords(all);
-    } catch (e) {
-      setError("Impossible de charger les mots.");
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const words = useMemo(() => {
+    const list = rawWords ?? [];
+    return [...list].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+    );
+  }, [rawWords]);
 
-  async function deleteWord(id: number | undefined) {
-    if (!id) return;
-    if (!window.confirm("Supprimer ce mot ?")) return;
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return words;
+    return words.filter(
+      (word) =>
+        word.term.toLowerCase().includes(query) ||
+        word.definition?.toLowerCase().includes(query)
+    );
+  }, [words, search]);
+
+  async function deleteWord(word: WordEntry) {
+    const id = word.id;
+    if (id === undefined) return;
+    if (!window.confirm(`Supprimer « ${word.term} » ?`)) return;
+
     try {
       await db.words.delete(id);
-      await loadWords();
-    } catch (e) {
-      setError("Impossible de supprimer le mot.");
-      console.error(e);
+    } catch (err) {
+      console.error(err);
     }
-  }
-
-  if (loading) {
-    return <div className="text-center py-20">Chargement...</div>;
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <section className="mt-8">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">{categoryName}</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {words.length} mot(s) ou phrase(s)
+          <h2 className="text-lg font-semibold text-foreground">
+            {categoryName}
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {words.length} {words.length > 1 ? "entrées" : "entrée"}
           </p>
         </div>
+
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Rechercher…"
+          className="w-full rounded-xl border border-border bg-background px-4 py-2 text-sm text-foreground placeholder:text-muted-opacity transition-colors focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none sm:w-64"
+        />
       </div>
 
-      {error && (
-        <div className="mb-4 p-3 rounded bg-red-50 border border-red-100 text-red-700 text-sm">
-          {error}
+      {loading ? (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-16 animate-pulse rounded-xl border border-border bg-card/60"
+            />
+          ))}
         </div>
-      )}
-
-      {words.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-          Aucun mot ou phrase enregistré dans cette catégorie pour le moment.
+      ) : filtered.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-card/40 px-6 py-12 text-center">
+          <p className="text-sm font-medium text-foreground">
+            {search ? "Aucun résultat" : "Aucun mot enregistré"}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {search
+              ? "Essayez un autre terme de recherche."
+              : "Ajoutez votre premier mot ou phrase avec le formulaire ci-dessus."}
+          </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {words.map((word) => (
-            <div
+        <ul className="space-y-2">
+          {filtered.map((word) => (
+            <li
               key={word.id}
-              className="flex items-center justify-between px-4 py-3 rounded border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white hover:bg-gray-700/50"
+              className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition-colors hover:border-primary/40 hover:bg-card-hover"
             >
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <Link
                   href={`/words/${word.id}`}
-                  className="text-lg font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  className="block truncate font-medium text-foreground transition-colors hover:text-primary"
                 >
                   {word.term}
                 </Link>
                 {word.definition && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {word.definition}
                   </p>
                 )}
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteWord(word.id);
-                }}
-                className="text-red-500 hover:text-red-700 dark:hover:text-red-400 text-sm"
-              >
-                Supprimer
-              </button>
-            </div>
+
+              <div className="flex shrink-0 items-center gap-1">
+                <Link
+                  href={`/words/${word.id}`}
+                  className="rounded-lg p-2 text-muted-opacity transition-colors hover:bg-muted hover:text-primary"
+                  aria-label={`Voir ${word.term}`}
+                >
+                  <ArrowRightIcon className="h-4 w-4" />
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => deleteWord(word)}
+                  className="rounded-lg p-2 text-muted-opacity transition-colors hover:bg-danger-soft hover:text-danger"
+                  aria-label={`Supprimer ${word.term}`}
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </button>
+              </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-    </div>
+    </section>
   );
 }

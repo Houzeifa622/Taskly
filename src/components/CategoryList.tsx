@@ -1,35 +1,51 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { db, type Category } from "@/lib/db";
+import { useLiveQuery } from "@/lib/useLiveQuery";
+import { ArrowRightIcon, PlusIcon, TrashIcon } from "@/components/icons";
+
+const PALETTE = [
+  { name: "Indigo", value: "#6366f1" },
+  { name: "Émeraude", value: "#10b981" },
+  { name: "Ambre", value: "#f59e0b" },
+  { name: "Rose", value: "#f43f5e" },
+  { name: "Ciel", value: "#0ea5e9" },
+  { name: "Violet", value: "#a855f7" },
+];
 
 export default function CategoryList() {
-  const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName] = useState("");
-  const [color, setColor] = useState("#3b82f6");
-  const [loading, setLoading] = useState(true);
+  const [color, setColor] = useState(PALETTE[0].value);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const all = await db.categories.toArray();
-        all.sort((a, b) => a.name.localeCompare(b.name));
-        setCategories(all);
-      } catch (e) {
-        setError("Impossible de charger les catégories.");
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
+  const { data: rawCategories, loading } = useLiveQuery<Category[]>(
+    () => db.categories.toArray(),
+    []
+  );
+  const { data: words } = useLiveQuery(() => db.words.toArray(), []);
+
+  const categories = useMemo(() => {
+    const list = rawCategories ?? [];
+    return [...list].sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  }, [rawCategories]);
+
+  const counts = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const word of words ?? []) {
+      map.set(word.categoryId, (map.get(word.categoryId) ?? 0) + 1);
     }
-    load();
-  }, []);
+    return map;
+  }, [words]);
 
   async function addCategory(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
+
+    setSaving(true);
+    setError(null);
 
     try {
       await db.categories.add({
@@ -38,98 +54,168 @@ export default function CategoryList() {
         createdAt: new Date(),
       });
       setName("");
-      setColor("#3b82f6");
-      load();
-    } catch (e) {
+      setColor(PALETTE[0].value);
+    } catch (err) {
+      console.error(err);
       setError("Impossible d'ajouter la catégorie.");
-      console.error(e);
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function deleteCategory(id: number) {
-    if (!window.confirm("Supprimer cette catégorie et tous ses mots ?")) return;
+  async function deleteCategory(category: Category) {
+    const id = category.id;
+    if (id === undefined) return;
+    if (!window.confirm(`Supprimer « ${category.name} » et tous ses mots ?`))
+      return;
+
     try {
       await db.words.where("categoryId").equals(id).delete();
       await db.categories.delete(id);
-      load();
-    } catch (e) {
+    } catch (err) {
+      console.error(err);
       setError("Impossible de supprimer la catégorie.");
-      console.error(e);
     }
   }
 
-  if (loading) {
-    return <div className="min-h-[300px] flex items-center justify-center text-muted-opacity">Chargement...</div>;
-  }
-
   return (
-    <section className="py-12">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-          <h1 className="text-2xl font-bold">Mes catégories d'apprentissage</h1>
-        </div>
+    <section className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+          Mon carnet
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Créez une catégorie par thème, puis ajoutez-y vos mots et phrases.
+        </p>
+      </header>
 
+      <form
+        onSubmit={addCategory}
+        className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+      >
         {error && (
-          <div className="mb-4 p-3 rounded bg-red-50 border border-red-100 text-red-700 text-sm">
+          <div className="mb-4 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
             {error}
           </div>
         )}
 
-        <form onSubmit={addCategory} className="mb-8 flex flex-col sm:flex-row gap-3">
+        <label
+          htmlFor="category-name"
+          className="block text-sm font-medium text-foreground"
+        >
+          Nouvelle catégorie
+        </label>
+
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row">
           <input
+            id="category-name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Nouvelle catégorie (ex: Anglais, Français…)"
-            className="flex-1 px-4 py-2 rounded border border-border placeholder-muted-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+            placeholder="Ex: Anglais, Français, Maths…"
+            className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-opacity transition-colors focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
             required
-          />
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="w-10 h-10 rounded-none bg-transparent p-1"
           />
           <button
             type="submit"
-            className="px-5 py-2.5 rounded bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            disabled={saving || !name.trim()}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover focus:ring-4 focus:ring-primary/20 focus:outline-none disabled:pointer-events-none disabled:opacity-50"
           >
+            <PlusIcon className="h-4 w-4" />
             Ajouter
           </button>
-        </form>
+        </div>
 
-        {categories.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            Aucune catégorie pour le moment. Créez-en une pour commencer à noter
-            vos mots et phrases.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {categories.map((category) => (
-              <div
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            Couleur :
+          </span>
+          {PALETTE.map((swatch) => (
+            <button
+              key={swatch.value}
+              type="button"
+              onClick={() => setColor(swatch.value)}
+              aria-label={swatch.name}
+              aria-pressed={color === swatch.value}
+              className={`h-7 w-7 rounded-full transition-transform hover:scale-110 ${
+                color === swatch.value
+                  ? "ring-2 ring-primary"
+                  : "ring-1 ring-border"
+              }`}
+              style={{ backgroundColor: swatch.value }}
+            />
+          ))}
+        </div>
+      </form>
+
+      {loading ? (
+        <div className="mt-8 space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-16 animate-pulse rounded-xl border border-border bg-card/60"
+            />
+          ))}
+        </div>
+      ) : categories.length === 0 ? (
+        <div className="mt-8 rounded-2xl border border-dashed border-border bg-card/40 px-6 py-14 text-center">
+          <p className="text-sm font-medium text-foreground">
+            Aucune catégorie pour le moment
+          </p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+            Commencez par créer une catégorie, puis ajoutez vos mots et phrases
+            à l&apos;intérieur.
+          </p>
+        </div>
+      ) : (
+        <ul className="mt-8 space-y-3">
+          {categories.map((category) => {
+            const count = category.id ? counts.get(category.id) ?? 0 : 0;
+
+            return (
+              <li
                 key={category.id}
-                className="flex items-center justify-between px-4 py-3 rounded border border-border hover:bg-primary/5 transition-colors dark:hover:bg-primary/10"
+                className="group flex items-center gap-4 rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition-colors hover:border-primary/40 hover:bg-card-hover"
               >
-                <div className="flex items-center gap-3">
-                  <span
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: category.color }}
-                  />
-                  <Link href={`/categories/${category.id}`}>
-                    <span className="font-medium text-foreground">{category.name}</span>
-                  </Link>
-                </div>
-                <button
-                  onClick={() => deleteCategory(category.id)}
-                  className="text-red-600 hover:text-red-500 text-sm"
+                <span
+                  className="h-9 w-1.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: category.color ?? "#6366f1" }}
+                />
+
+                <Link
+                  href={`/categories/${category.id}`}
+                  className="min-w-0 flex-1 rounded-lg outline-none"
                 >
-                  Supprimer
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                  <span className="block truncate font-medium text-foreground">
+                    {category.name}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {count} {count > 1 ? "mots ou phrases" : "mot ou phrase"}
+                  </span>
+                </Link>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  <Link
+                    href={`/categories/${category.id}`}
+                    className="rounded-lg p-2 text-muted-opacity transition-colors hover:bg-muted hover:text-primary"
+                    aria-label={`Ouvrir ${category.name}`}
+                  >
+                    <ArrowRightIcon className="h-4 w-4" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => deleteCategory(category)}
+                    className="rounded-lg p-2 text-muted-opacity transition-colors hover:bg-danger-soft hover:text-danger"
+                    aria-label={`Supprimer ${category.name}`}
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }

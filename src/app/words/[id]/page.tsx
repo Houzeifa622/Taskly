@@ -1,22 +1,26 @@
-import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
+"use client";
+
+import { Suspense } from "react";
+import { useParams } from "next/navigation";
 import WordDetail from "@/components/WordDetail";
 
-interface Props {
-  params: { id: string };
-}
-
-export default async function WordPage({ params }: Props) {
+function WordContent() {
+  const params = useParams<{ id: string }>();
   const wordId = Number(params.id);
 
-  const word = await db.words.get(wordId);
-  if (!word) {
-    notFound();
-  }
+  return <WordDetail wordId={wordId} />;
+}
 
+export default function WordPage() {
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <WordDetail wordId={word.id!} />
-    </div>
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
+          <div className="h-64 animate-pulse rounded-2xl border border-border bg-card/60" />
+        </div>
+      }
+    >
+      <WordContent />
+    </Suspense>
   );
 }

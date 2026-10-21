@@ -1,15 +1,32 @@
+import { Suspense } from "react";
 import TaskForm from "@/components/TaskForm";
 import TaskList from "@/components/TaskList";
 
 export default function TasksPage() {
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-foreground">Mes tâches</h1>
-      </div>
+    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+          Mes tâches
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Suivez ce qui reste à faire, ce qui est terminé, et filtrez par date.
+        </p>
+      </header>
 
-      <TaskForm />
-      <TaskList />
+      {/* La zone interactive lit l'heure courante et IndexedDB : elle est
+          rendue côté client, derrière une frontière Suspense. */}
+      <Suspense
+        fallback={
+          <div className="space-y-6">
+            <div className="h-72 animate-pulse rounded-2xl border border-border bg-card/60" />
+            <div className="h-40 animate-pulse rounded-2xl border border-border bg-card/60" />
+          </div>
+        }
+      >
+        <TaskForm />
+        <TaskList />
+      </Suspense>
     </div>
   );
 }

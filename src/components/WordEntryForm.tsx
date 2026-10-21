@@ -1,25 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { db, type WordEntry } from "@/lib/db";
-import Link from "next/link";
+import { db } from "@/lib/db";
+import { PlusIcon } from "@/components/icons";
 
 interface Props {
   categoryId: number;
 }
 
+const FIELD_CLASS =
+  "w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-opacity transition-colors focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none";
+
 export default function WordEntryForm({ categoryId }: Props) {
   const [term, setTerm] = useState("");
   const [definition, setDefinition] = useState("");
   const [usage, setUsage] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function addWord(e: React.FormEvent) {
     e.preventDefault();
     if (!term.trim()) return;
 
-    setLoading(true);
+    setSaving(true);
     setError(null);
 
     try {
@@ -35,79 +38,95 @@ export default function WordEntryForm({ categoryId }: Props) {
       setTerm("");
       setDefinition("");
       setUsage("");
-      // Pas de callback parent - la liste se rafraîchira au prochain rendu
-    } catch (e) {
+    } catch (err) {
+      console.error(err);
       setError("Impossible d'ajouter le mot ou la phrase.");
-      console.error(e);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   }
 
   return (
-    <div className="mt-8 bg-white dark:bg-gray-800 p-5 rounded border border-gray-200 dark:border-gray-700">
-      <h2 className="text-lg font-semibold mb-4">Ajouter un mot ou une phrase</h2>
+    <form
+      onSubmit={addWord}
+      className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6"
+    >
+      <h2 className="text-base font-semibold text-foreground">
+        Ajouter un mot ou une phrase
+      </h2>
+
       {error && (
-        <div className="mb-3 p-2 rounded bg-red-50 border border-red-100 text-red-700 text-sm">
+        <div className="mt-4 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}
         </div>
       )}
-      <form onSubmit={addWord} className="space-y-3">
+
+      <div className="mt-4 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label htmlFor="word-term" className="mb-1.5 block text-sm font-medium text-foreground">
             Mot ou phrase
           </label>
           <input
+            id="word-term"
             type="text"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
             placeholder="Ex: serendipity, faire la queue…"
-            className="mt-1 block w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className={FIELD_CLASS}
             required
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Signification (optionnel)
-          </label>
-          <textarea
-            value={definition}
-            onChange={(e) => setDefinition(e.target.value)}
-            rows={2}
-            placeholder="Définition courte…"
-            className="mt-1 block w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          />
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label
+              htmlFor="word-definition"
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
+              Signification
+            </label>
+            <textarea
+              id="word-definition"
+              value={definition}
+              onChange={(e) => setDefinition(e.target.value)}
+              rows={3}
+              placeholder="Définition courte…"
+              className={`${FIELD_CLASS} resize-y`}
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="word-usage"
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
+              Comment l&apos;utiliser
+            </label>
+            <textarea
+              id="word-usage"
+              value={usage}
+              onChange={(e) => setUsage(e.target.value)}
+              rows={3}
+              placeholder="Exemple de phrase ou contexte…"
+              className={`${FIELD_CLASS} resize-y`}
+            />
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Comment l'utiliser (optionnel)
-          </label>
-          <textarea
-            value={usage}
-            onChange={(e) => setUsage(e.target.value)}
-            rows={2}
-            placeholder="Exemple de phrase ou contexte…"
-            className="mt-1 block w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          />
-        </div>
+      </div>
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-muted-opacity">
+          Cliquez ensuite sur un mot enregistré pour le relire.
+        </p>
         <button
           type="submit"
-          disabled={loading}
-          className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={saving || !term.trim()}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover focus:ring-4 focus:ring-primary/20 focus:outline-none disabled:pointer-events-none disabled:opacity-50"
         >
+          <PlusIcon className="h-4 w-4" />
           Enregistrer
         </button>
-      </form>
-      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-        Vous pouvez cliquer sur n'importe quel mot enregistré pour voir sa
-        signification et comment l'utiliser.
-      </p>
-      <Link
-        href="/categories"
-        className="mt-2 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline"
-      >
-        ← Retour aux catégories
-      </Link>
-    </div>
+      </div>
+    </form>
   );
 }

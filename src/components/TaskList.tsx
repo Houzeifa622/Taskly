@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { db, type Task } from "@/lib/db";
 import { useLiveQuery } from "@/lib/useLiveQuery";
 import TaskItem from "@/components/TaskItem";
+import EmptyState from "@/components/EmptyState";
+import { EmptyChecklistIllustration } from "@/components/illustrations";
 
 type FilterStatus = "all" | "completed" | "pending";
 type DateFilter = "all" | "with-date" | "without-date" | "today";
@@ -40,7 +42,7 @@ function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-full px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
+      className={`rounded-full px-3 py-1.5 text-body font-medium whitespace-nowrap transition-colors ${
         active
           ? "bg-primary-soft text-primary"
           : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -109,6 +111,9 @@ export default function TaskList({
     ? Math.round((stats.completed / stats.total) * 100)
     : 0;
 
+  const isFiltered =
+    statusFilter !== "all" || dateFilter !== "all";
+
   return (
     <section className="mt-8">
       <div className="grid grid-cols-3 gap-3">
@@ -129,10 +134,12 @@ export default function TaskList({
             key={stat.label}
             className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
           >
-            <p className="text-[11px] font-medium tracking-wide text-muted-opacity uppercase">
+            <p className="text-caption font-medium tracking-wide text-muted-opacity uppercase">
               {stat.label}
             </p>
-            <p className={`mt-1 text-2xl font-semibold ${stat.className}`}>
+            <p
+              className={`mt-1 text-heading font-semibold tabular-nums ${stat.className}`}
+            >
               {stat.value}
             </p>
           </div>
@@ -183,18 +190,23 @@ export default function TaskList({
           ))}
         </div>
       ) : filteredTasks.length === 0 ? (
-        <div className="mt-4 rounded-2xl border border-dashed border-border bg-card/40 px-6 py-12 text-center">
-          <p className="text-sm font-medium text-foreground">
-            Aucune tâche à afficher
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Ajoutez une tâche ou changez de filtre pour en voir apparaître.
-          </p>
+        <div className="mt-4">
+          <EmptyState
+            illustration={<EmptyChecklistIllustration />}
+            title={
+              isFiltered ? "Aucune tâche ne correspond" : "Aucune tâche pour le moment"
+            }
+            description={
+              isFiltered
+                ? "Modifiez les filtres pour retrouver vos tâches."
+                : "Ajoutez une première tâche : elle apparaîtra ici et se synchronisera automatiquement."
+            }
+          />
         </div>
       ) : (
         <ul className="mt-4 space-y-2">
-          {filteredTasks.map((task) => (
-            <TaskItem key={task.id} task={task} />
+          {filteredTasks.map((task, index) => (
+            <TaskItem key={task.id} task={task} index={index} />
           ))}
         </ul>
       )}

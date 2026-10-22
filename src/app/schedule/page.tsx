@@ -6,10 +6,10 @@ export default function SchedulePage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+        <h1 className="text-title font-bold tracking-tight text-foreground">
           Emploi du temps
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-2 text-body text-muted-foreground">
           Vos rendez-vous et créneaux, en agenda ou en vue semaine.
         </p>
       </header>

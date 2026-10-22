@@ -24,7 +24,7 @@ export default function HeaderNav({ pathname }: { pathname?: string | null }) {
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
-            className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-body font-medium transition-colors ${
               active
                 ? "bg-primary-soft text-primary"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"

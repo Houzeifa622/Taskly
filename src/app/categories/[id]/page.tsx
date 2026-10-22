@@ -30,15 +30,15 @@ function CategoryContent() {
   if (!category || category.id === undefined) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center sm:px-6 lg:px-8">
-        <p className="text-base font-medium text-foreground">
+        <p className="text-body font-medium text-foreground">
           Catégorie introuvable
         </p>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-body text-muted-foreground">
           Elle a peut-être été supprimée depuis un autre onglet.
         </p>
         <Link
           href="/categories"
-          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-body font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover"
         >
           <ArrowLeftIcon className="h-4 w-4" />
           Retour aux catégories
@@ -51,7 +51,7 @@ function CategoryContent() {
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
       <Link
         href="/categories"
-        className="inline-flex items-center gap-1.5 rounded-lg text-sm text-muted-foreground transition-colors hover:text-primary"
+        className="inline-flex items-center gap-1.5 rounded-lg text-body text-muted-foreground transition-colors hover:text-primary"
       >
         <ArrowLeftIcon className="h-4 w-4" />
         Toutes les catégories
@@ -62,7 +62,7 @@ function CategoryContent() {
           className="h-10 w-1.5 rounded-full"
           style={{ backgroundColor: category.color ?? "#6366f1" }}
         />
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+        <h1 className="text-title font-bold tracking-tight text-foreground">
           {category.name}
         </h1>
       </div>

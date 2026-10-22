@@ -1,11 +1,12 @@
 @import "tailwindcss";
 
-/* ---------------------------------------------------------------------------
-   Design tokens Taskly
-   Les valeurs sont définies dans :root puis redirigées vers les utilitaires
-   Tailwind via @theme inline (le "inline" garde la référence à la variable,
-   ce qui permet au mode sombre de bascule simplement).
---------------------------------------------------------------------------- */
+/* ==========================================================================
+   Taskly — Design tokens
+   Les couleurs vivent dans des variables CSS (light par défaut, dark via
+   [data-theme="dark"]) puis sont redirigées vers les utilitaires Tailwind
+   avec @theme inline. Le thème appliqué est posé sur <html> par le script
+   d'inline de src/app/layout.tsx (avant le premier paint).
+   ========================================================================== */
 
 :root {
   /* Surfaces */
@@ -30,45 +31,43 @@
   --secondary: #eff0f7;
   --muted: #eff0f7;
   --muted-foreground: #66667d;
-  --muted-opacity: #9a9ab2;
+  --muted-opacity: #6f6f8a;
 
   /* Sémantique */
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
+  --success: #047857;
+  --warning: #b45309;
+  --danger: #b91c1c;
   --danger-soft: #fef2f2;
-  --info: #3b82f6;
+  --info: #2563eb;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a11;
-    --foreground: #ececf5;
+:root[data-theme="dark"] {
+  --background: #0a0a11;
+  --foreground: #ececf5;
 
-    --card: #12121c;
-    --card-hover: #1a1a26;
-    --card-foreground: #ececf5;
+  --card: #12121c;
+  --card-hover: #1a1a26;
+  --card-foreground: #ececf5;
 
-    --border: #262637;
-    --input: #34344a;
-    --ring: #818cf8;
+  --border: #262637;
+  --input: #34344a;
+  --ring: #818cf8;
 
-    --primary: #818cf8;
-    --primary-hover: #a5b4fc;
-    --primary-foreground: #0a0a11;
-    --primary-soft: #1d1c38;
+  --primary: #818cf8;
+  --primary-hover: #a5b4fc;
+  --primary-foreground: #0a0a11;
+  --primary-soft: #1d1c38;
 
-    --secondary: #1b1b27;
-    --muted: #1b1b27;
-    --muted-foreground: #a3a3ba;
-    --muted-opacity: #74748c;
+  --secondary: #1b1b27;
+  --muted: #1b1b27;
+  --muted-foreground: #a3a3ba;
+  --muted-opacity: #8a8aa4;
 
-    --success: #34d399;
-    --warning: #fbbf24;
-    --danger: #f87171;
-    --danger-soft: #2a1618;
-    --info: #60a5fa;
-  }
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --danger-soft: #2a1618;
+  --info: #60a5fa;
 }
 
 @theme inline {
@@ -101,13 +100,200 @@
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-
-  --radius-card: 1rem;
 }
 
-/* ---------------------------------------------------------------------------
+/* ==========================================================================
+   Échelle typographique
+   display  : titres de page (accueil)
+   title    : titres de section (h1 de module)
+   heading  : titres de carte / statistiques
+   subheading: sous-titres, libellés de liste
+   body     : texte courant, champs de formulaire
+   label    : libellés de formulaire, boutons
+   caption  : métadonnées, badges
+   ========================================================================== */
+
+@theme {
+  --text-display: 2.5rem;
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.03em;
+
+  --text-title: 1.875rem;
+  --text-title--line-height: 1.2;
+  --text-title--letter-spacing: -0.02em;
+
+  --text-heading: 1.375rem;
+  --text-heading--line-height: 1.3;
+  --text-heading--letter-spacing: -0.01em;
+
+  --text-subheading: 1.125rem;
+  --text-subheading--line-height: 1.35;
+
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.6;
+
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.4;
+
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.4;
+}
+
+/* ==========================================================================
+   Animations
+   ========================================================================== */
+
+@theme {
+  --animate-fade-up: fade-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.24s ease-out both;
+  --animate-scale-in: scale-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-slide-up: slide-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-toast-in: toast-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-check-pop: check-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes check-pop {
+    0% {
+      transform: scale(0.4);
+      opacity: 0;
+    }
+    60% {
+      transform: scale(1.15);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+}
+
+/* ==========================================================================
+   Accents des modules (page d'accueil)
+   Chaque module dispose d'une teinte qui suit le thème clair / sombre.
+   ========================================================================== */
+
+:root {
+  --module-carnet: #4f46e5;
+  --module-taches: #047857;
+  --module-agenda: #b45309;
+}
+
+:root[data-theme="dark"] {
+  --module-carnet: #a5b4fc;
+  --module-taches: #34d399;
+  --module-agenda: #fbbf24;
+}
+
+.tint-carnet {
+  background-color: color-mix(in srgb, var(--module-carnet) 12%, transparent);
+  color: var(--module-carnet);
+}
+
+.tint-taches {
+  background-color: color-mix(in srgb, var(--module-taches) 14%, transparent);
+  color: var(--module-taches);
+}
+
+.tint-agenda {
+  background-color: color-mix(in srgb, var(--module-agenda) 14%, transparent);
+  color: var(--module-agenda);
+}
+
+.glow-carnet {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--module-carnet) 20%, transparent),
+    transparent
+  );
+}
+
+.glow-taches {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--module-taches) 20%, transparent),
+    transparent
+  );
+}
+
+.glow-agenda {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--module-agenda) 20%, transparent),
+    transparent
+  );
+}
+
+/* ==========================================================================
+   Icône du sélecteur de thème
+   L'icône affichée est pilotée par CSS (attributs posés sur <html> par le
+   script inline) : aucun écart possible entre le HTML servi et l'hydratation.
+   ========================================================================== */
+
+.theme-icon {
+  display: none;
+}
+
+:root[data-theme-preference="light"] .icon-sun,
+:root[data-theme-preference="dark"] .icon-moon,
+:root[data-theme-preference="auto"] .icon-auto {
+  display: block;
+}
+
+/* ==========================================================================
    Base
---------------------------------------------------------------------------- */
+   ========================================================================== */
 
 @layer base {
   * {
@@ -123,8 +309,17 @@
     background-color: var(--background);
     color: var(--foreground);
     font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
   }
 
   ::selection {
@@ -135,6 +330,15 @@
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
+  }
+
+  /* Les champs natifs héritent du thème (listes déroulantes, calendrier) */
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
   }
 
   ::-webkit-scrollbar {
@@ -155,5 +359,16 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background-color: var(--muted-opacity);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

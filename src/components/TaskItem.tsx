@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { db, type Task } from "@/lib/db";
+import { useRemoveAnimation } from "@/lib/useRemoveAnimation";
+import { toastWithUndo } from "@/lib/undo";
 import {
   CalendarIcon,
   FlagIcon,
@@ -12,6 +14,7 @@ import {
 
 interface Props {
   task: Task;
+  index?: number;
 }
 
 const PRIORITY_STYLES: Record<Task["priority"], string> = {
@@ -33,11 +36,15 @@ const RECURRENCE_LABELS: Record<Task["recurrence"], string> = {
   monthly: "Mensuelle",
 };
 
-export default function TaskItem({ task }: Props) {
+const BADGE_CLASS =
+  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-medium";
+
+export default function TaskItem({ task, index = 0 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(task.title);
   // Horodatage figé au montage : évite un calcul impur pendant le rendu.
   const [mountedAt] = useState(() => Date.now());
+  const { removing, remove } = useRemoveAnimation();
 
   const id = task.id;
 
@@ -60,12 +67,32 @@ export default function TaskItem({ task }: Props) {
 
   async function deleteTask() {
     if (id === undefined) return;
-    if (!window.confirm(`Supprimer « ${task.title} » ?`)) return;
-    try {
-      await db.tasks.delete(id);
-    } catch (e) {
-      console.error("Erreur lors de la suppression", e);
-    }
+
+    const snapshot = { ...task };
+
+    await remove(async () => {
+      try {
+        await db.tasks.delete(id);
+        toastWithUndo({
+          title: "Tâche supprimée",
+          description: snapshot.title,
+          onUndo: async () => {
+            await db.tasks.add({
+              title: snapshot.title,
+              note: snapshot.note,
+              dueDate: snapshot.dueDate,
+              completed: snapshot.completed,
+              priority: snapshot.priority,
+              recurrence: snapshot.recurrence,
+              createdAt: snapshot.createdAt,
+              updatedAt: snapshot.updatedAt,
+            });
+          },
+        });
+      } catch (e) {
+        console.error("Erreur lors de la suppression", e);
+      }
+    });
   }
 
   async function saveEdit() {
@@ -96,9 +123,10 @@ export default function TaskItem({ task }: Props) {
 
   return (
     <li
-      className={`group flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition-colors hover:border-primary/30 ${
+      style={{ animationDelay: `${Math.min(index, 10) * 35}ms` }}
+      className={`group flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition-all duration-200 hover:border-primary/30 animate-fade-up ${
         task.completed ? "opacity-60" : ""
-      }`}
+      } ${removing ? "scale-95 opacity-0" : ""}`}
     >
       <button
         type="button"
@@ -124,7 +152,7 @@ export default function TaskItem({ task }: Props) {
             strokeWidth={3.5}
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="h-3 w-3"
+            className="h-3 w-3 animate-check-pop"
           >
             <path d="M5 13l4 4L19 7" />
           </svg>
@@ -145,14 +173,14 @@ export default function TaskItem({ task }: Props) {
                 setIsEditing(false);
               }
             }}
-            className="w-full rounded-lg border border-border bg-background px-2.5 py-1 text-sm text-foreground focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
+            className="w-full rounded-lg border border-border bg-background px-2.5 py-1 text-body text-foreground focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
           />
         ) : (
           <button
             type="button"
             onDoubleClick={startEditing}
             title="Double-clic pour modifier"
-            className={`block w-full text-left text-sm ${
+            className={`block w-full text-left text-body ${
               task.completed
                 ? "text-muted-foreground line-through"
                 : "font-medium text-foreground"
@@ -163,21 +191,21 @@ export default function TaskItem({ task }: Props) {
         )}
 
         {task.note && !isEditing && (
-          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+          <p className="mt-1 line-clamp-2 text-caption text-muted-foreground">
             {task.note}
           </p>
         )}
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${PRIORITY_STYLES[task.priority]}`}
-          >
+          <span className={`${BADGE_CLASS} ${PRIORITY_STYLES[task.priority]}`}>
             <FlagIcon className="h-3 w-3" />
             {PRIORITY_LABELS[task.priority]}
           </span>
 
           {task.recurrence !== "none" && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <span
+              className={`${BADGE_CLASS} bg-muted text-muted-foreground`}
+            >
               <RepeatIcon className="h-3 w-3" />
               {RECURRENCE_LABELS[task.recurrence]}
             </span>
@@ -185,14 +213,14 @@ export default function TaskItem({ task }: Props) {
 
           {dueLabel && (
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+              className={`${BADGE_CLASS} ${
                 isOverdue
                   ? "bg-danger/10 text-danger"
                   : "bg-muted text-muted-foreground"
               }`}
             >
               <CalendarIcon className="h-3 w-3" />
-              {dueLabel}
+              <span className="tabular-nums">{dueLabel}</span>
             </span>
           )}
         </div>
@@ -202,7 +230,7 @@ export default function TaskItem({ task }: Props) {
         <button
           type="button"
           onClick={startEditing}
-          className="rounded-lg p-2 text-muted-opacity transition-colors hover:bg-muted hover:text-primary"
+          className="rounded-lg p-2 text-muted-opacity transition-colors hover:bg-muted hover:text-primary focus:ring-4 focus:ring-primary/20 focus:outline-none"
           aria-label={`Modifier « ${task.title} »`}
         >
           <PencilIcon className="h-4 w-4" />
@@ -210,7 +238,7 @@ export default function TaskItem({ task }: Props) {
         <button
           type="button"
           onClick={deleteTask}
-          className="rounded-lg p-2 text-muted-opacity transition-colors hover:bg-danger-soft hover:text-danger"
+          className="rounded-lg p-2 text-muted-opacity transition-colors hover:bg-danger-soft hover:text-danger focus:ring-4 focus:ring-danger/20 focus:outline-none"
           aria-label={`Supprimer « ${task.title} »`}
         >
           <TrashIcon className="h-4 w-4" />

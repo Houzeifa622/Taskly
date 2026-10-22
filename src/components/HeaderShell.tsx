@@ -1,5 +1,6 @@
 import Link from "next/link";
 import HeaderNav from "@/components/HeaderNav";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function HeaderShell({
   pathname,
@@ -26,12 +27,16 @@ export default function HeaderShell({
               <path d="M5 13l4 4L19 7" />
             </svg>
           </span>
-          <span className="text-lg font-semibold tracking-tight text-foreground">
+          <span className="text-subheading font-semibold tracking-tight text-foreground">
             Taskly
           </span>
         </Link>
 
         <HeaderNav pathname={pathname} />
+
+        <div className="shrink-0">
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );

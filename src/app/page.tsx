@@ -1,4 +1,5 @@
 import Link from "next/link";
+import InstallPrompt from "@/components/InstallPrompt";
 import {
   ArrowRightIcon,
   BookIcon,
@@ -15,8 +16,8 @@ const MODULES = [
     description:
       "Rangez vos mots et phrases par catégorie, avec leur signification et un exemple d'usage.",
     icon: BookIcon,
-    accent: "from-indigo-500/20 to-indigo-500/0",
-    iconClass: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-300",
+    tint: "tint-carnet",
+    glow: "glow-carnet",
   },
   {
     href: "/tasks",
@@ -24,8 +25,8 @@ const MODULES = [
     description:
       "Cochez ce qui est fait, filtrez par date, assignez une priorité et une récurrence.",
     icon: CheckSquareIcon,
-    accent: "from-emerald-500/20 to-emerald-500/0",
-    iconClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
+    tint: "tint-taches",
+    glow: "glow-taches",
   },
   {
     href: "/schedule",
@@ -33,8 +34,8 @@ const MODULES = [
     description:
       "Planifiez vos créneaux, de la date à l'heure, et retrouvez-les d'un coup d'œil.",
     icon: CalendarIcon,
-    accent: "from-amber-500/20 to-amber-500/0",
-    iconClass: "bg-amber-500/10 text-amber-600 dark:text-amber-300",
+    tint: "tint-agenda",
+    glow: "glow-agenda",
   },
 ];
 
@@ -48,15 +49,15 @@ export default function Home() {
 
       <div className="relative mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-caption font-medium text-muted-foreground shadow-sm">
             <SparkIcon className="h-3.5 w-3.5 text-primary" />
             100% hors-ligne, sur votre appareil
           </span>
 
-          <h1 className="mt-6 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+          <h1 className="mt-6 text-display font-bold tracking-tight text-foreground">
             Taskly
           </h1>
-          <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
+          <p className="mt-4 text-heading leading-relaxed font-normal text-muted-foreground">
             Votre carnet personnel pour apprendre, organiser et ne rien
             oublier. Trois modules, une seule application, aucun compte à
             créer.
@@ -64,32 +65,33 @@ export default function Home() {
         </div>
 
         <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {MODULES.map((module) => {
+          {MODULES.map((module, index) => {
             const Icon = module.icon;
 
             return (
               <Link
                 key={module.href}
                 href={module.href}
-                className={`group relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-primary/30`}
+                style={{ animationDelay: `${index * 70}ms` }}
+                className="group relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-primary/30 animate-fade-up"
               >
                 <div
                   aria-hidden
-                  className={`pointer-events-none absolute inset-x-0 -top-16 h-32 bg-gradient-to-b ${module.accent} opacity-0 transition-opacity duration-200 group-hover:opacity-100`}
+                  className={`pointer-events-none absolute inset-x-0 -top-16 h-32 opacity-0 transition-opacity duration-200 group-hover:opacity-100 ${module.glow}`}
                 />
                 <div className="relative">
                   <span
-                    className={`inline-flex h-11 w-11 items-center justify-center rounded-xl ${module.iconClass}`}
+                    className={`inline-flex h-11 w-11 items-center justify-center rounded-xl ${module.tint}`}
                   >
                     <Icon className="h-5.5 w-5.5" />
                   </span>
-                  <h2 className="mt-5 text-lg font-semibold text-foreground">
+                  <h2 className="mt-5 text-subheading font-semibold text-foreground">
                     {module.title}
                   </h2>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  <p className="mt-2 text-body leading-relaxed text-muted-foreground">
                     {module.description}
                   </p>
-                  <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-primary">
+                  <span className="mt-5 inline-flex items-center gap-1.5 text-body font-medium text-primary">
                     Ouvrir
                     <ArrowRightIcon className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
                   </span>
@@ -125,10 +127,10 @@ export default function Home() {
               >
                 <Icon className="mt-0.5 h-4.5 w-4.5 shrink-0 text-primary" />
                 <div>
-                  <p className="text-sm font-medium text-foreground">
+                  <p className="text-body font-medium text-foreground">
                     {item.title}
                   </p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  <p className="mt-1 text-caption leading-relaxed text-muted-foreground">
                     {item.text}
                   </p>
                 </div>
@@ -136,6 +138,8 @@ export default function Home() {
             );
           })}
         </div>
+
+        <InstallPrompt />
       </div>
     </section>
   );

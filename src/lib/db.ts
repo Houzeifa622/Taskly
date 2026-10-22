@@ -29,14 +29,33 @@ export interface Task {
   updatedAt: Date;
 }
 
+export type Recurrence = "none" | "daily" | "weekly" | "monthly";
+
 export interface ScheduleEvent {
   id?: number;
   title: string;
   note?: string;
   startDateTime: Date;
   endDateTime: Date;
+  /** Créneau sans heure précise, occupant la journée entière. */
+  allDay?: boolean;
   categoryId: number | null;
-  recurrence: "none" | "daily" | "weekly" | "monthly" | null;
+  recurrence: Recurrence | null;
+  /** Dernier jour où la série se répète (vide = sans fin). */
+  recurrenceEnd?: Date | null;
+  /** Jours (clés `dayKey`) dont l'occurrence récurrente a été supprimée. */
+  exceptions?: string[];
+  createdAt: Date;
+}
+
+/** Créneau type réutilisable en un clic. */
+export interface ScheduleTemplate {
+  id?: number;
+  title: string;
+  note?: string;
+  durationMinutes: number;
+  categoryId: number | null;
+  recurrence: Recurrence;
   createdAt: Date;
 }
 
@@ -45,6 +64,7 @@ class TasklyDB extends Dexie {
   words!: Table<WordEntry, number>;
   tasks!: Table<Task, number>;
   scheduleEvents!: Table<ScheduleEvent, number>;
+  scheduleTemplates!: Table<ScheduleTemplate, number>;
 
   constructor() {
     super("TasklyDB");
@@ -53,6 +73,13 @@ class TasklyDB extends Dexie {
       words: "++id, term, categoryId, createdAt, updatedAt",
       tasks: "++id, title, dueDate, completed, createdAt",
       scheduleEvents: "++id, startDateTime, endDateTime, categoryId",
+    });
+    this.version(2).stores({
+      categories: "++id, name, createdAt",
+      words: "++id, term, categoryId, createdAt, updatedAt",
+      tasks: "++id, title, dueDate, completed, createdAt",
+      scheduleEvents: "++id, startDateTime, endDateTime, categoryId",
+      scheduleTemplates: "++id, title, createdAt",
     });
   }
 }

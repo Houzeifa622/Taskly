@@ -2,10 +2,9 @@
    - Met en cache l' coquille de l'application et les ressources statiques.
    - Sert la page depuis le cache cuando le reseau est indisponible. */
 
-const CACHE_NAME = "taskly-v1";
+const CACHE_NAME = "taskly-v2";
 
 const APP_SHELL = [
-  "/",
   "/categories",
   "/tasks",
   "/schedule",
@@ -62,7 +61,7 @@ self.addEventListener("fetch", (event) => {
         .catch(async () => {
           const cached = await caches.match(request);
           if (cached) return cached;
-          const shell = await caches.match("/");
+          const shell = await caches.match("/tasks");
           return (
             shell ||
             new Response("Hors-ligne", {

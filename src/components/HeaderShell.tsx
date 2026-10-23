@@ -11,7 +11,7 @@ export default function HeaderShell({
     <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 sm:gap-6 sm:px-6 lg:px-8">
         <Link
-          href="/"
+          href="/tasks"
           className="group flex shrink-0 items-center gap-2.5 rounded-lg outline-none"
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition-transform duration-200 group-hover:scale-105">

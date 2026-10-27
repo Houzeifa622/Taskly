@@ -1,0 +1,109 @@
+﻿import Dexie, { Table } from "dexie";
+
+export interface Category {
+  id?: number;
+  name: string;
+  color?: string;
+  createdAt: Date;
+}
+
+export interface WordEntry {
+  id?: number;
+  term: string;
+  categoryId: number;
+  definition?: string;
+  usage?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Task {
+  id?: number;
+  title: string;
+  note?: string;
+  /** Jour d'Ã©chÃ©ance (minuit local), ou null si aucune date n'est fixÃ©e. */
+  dueDate: Date | null;
+  /** Heure d'Ã©chÃ©ance Â« HH:MM Â», facultative. */
+  dueTime?: string | null;
+  completed: boolean;
+  priority: "low" | "normal" | "high";
+  recurrence: "none" | "daily" | "weekly" | "monthly";
+  /** Dernier jour oÃ¹ la sÃ©rie se rÃ©pÃ¨te (vide = sans fin). */
+  recurrenceEnd?: Date | null;
+  /** CatÃ©gorie du carnet, facultative. */
+  categoryId?: number | null;
+  /** Jours (clÃ©s `dayKey`) oÃ¹ une occurrence rÃ©currente a Ã©tÃ© cochÃ©e. */
+  completedDates?: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type Recurrence = "none" | "daily" | "weekly" | "monthly";
+
+export interface ScheduleEvent {
+  id?: number;
+  title: string;
+  note?: string;
+  startDateTime: Date;
+  endDateTime: Date;
+  /** CrÃ©neau sans heure prÃ©cise, occupant la journÃ©e entiÃ¨re. */
+  allDay?: boolean;
+  categoryId: number | null;
+  recurrence: Recurrence | null;
+  /** Jours de la semaine pour une rÃ©currence hebdomadaire (0 = lundi â€¦ 6 = dimanche). */
+  weeklyDays?: number[] | null;
+  /** Dernier jour oÃ¹ la sÃ©rie se rÃ©pÃ¨te (vide = sans fin). */
+  recurrenceEnd?: Date | null;
+  /** Jours (clÃ©s `dayKey`) dont l'occurrence rÃ©currente a Ã©tÃ© supprimÃ©e. */
+  exceptions?: string[];
+  createdAt: Date;
+}
+
+/** CrÃ©neau type rÃ©utilisable en un clic. */
+export interface ScheduleTemplate {
+  id?: number;
+  title: string;
+  note?: string;
+  durationMinutes: number;
+  categoryId: number | null;
+  recurrence: Recurrence;
+  createdAt: Date;
+}
+
+class TasklyDB extends Dexie {
+  categories!: Table<Category, number>;
+  words!: Table<WordEntry, number>;
+  tasks!: Table<Task, number>;
+  scheduleEvents!: Table<ScheduleEvent, number>;
+  scheduleTemplates!: Table<ScheduleTemplate, number>;
+
+  constructor() {
+    super("TasklyDB");
+    this.version(1).stores({
+      categories: "++id, name, createdAt",
+      words: "++id, term, categoryId, createdAt, updatedAt",
+      tasks: "++id, title, dueDate, completed, createdAt",
+      scheduleEvents: "++id, startDateTime, endDateTime, categoryId",
+    });
+    this.version(2).stores({
+      categories: "++id, name, createdAt",
+      words: "++id, term, categoryId, createdAt, updatedAt",
+      tasks: "++id, title, dueDate, completed, createdAt",
+      scheduleEvents: "++id, startDateTime, endDateTime, categoryId",
+      scheduleTemplates: "++id, title, createdAt",
+    });
+    // v4 : rÃ©currence hebdomadaire sur plusieurs jours.
+    this.version(4).stores({
+      categories: "++id, name, createdAt",
+      words: "++id, term, categoryId, createdAt, updatedAt",
+      tasks: "++id, title, dueDate, completed, createdAt, categoryId",
+      scheduleEvents: "++id, startDateTime, endDateTime, categoryId",
+      scheduleTemplates: "++id, title, createdAt",
+    });
+}
+
+export const db = new TasklyDB();
+
+
+export const db = new TasklyDB();
+

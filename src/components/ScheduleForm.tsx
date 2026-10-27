@@ -109,6 +109,7 @@ export default function ScheduleForm() {
       categoryId: template.categoryId,
       recurrence: template.recurrence,
       recurrenceEnd: "",
+      weeklyDays: [],
     });
     setError(null);
   }

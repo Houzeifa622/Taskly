@@ -10,6 +10,16 @@ export const WEEKDAY_LABELS = [
   "Dim",
 ];
 
+export const WEEKDAY_FULL_LABELS = [
+  "Lundi",
+  "Mardi",
+  "Mercredi",
+  "Jeudi",
+  "Vendredi",
+  "Samedi",
+  "Dimanche",
+];
+
 export function startOfDay(date: Date): Date {
   const copy = new Date(date);
   copy.setHours(0, 0, 0, 0);

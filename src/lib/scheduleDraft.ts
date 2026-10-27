@@ -1,6 +1,6 @@
 import type { Category, Recurrence, ScheduleEvent } from "@/lib/db";
 import type { Occurrence } from "@/lib/schedule";
-import { startOfDay } from "@/lib/dates";
+import { startOfDay, weekdayIndex } from "@/lib/dates";
 
 export interface ScheduleDraft {
   title: string;
@@ -11,6 +11,8 @@ export interface ScheduleDraft {
   end: string;
   categoryId: number | null;
   recurrence: Recurrence;
+  /** Jours de la semaine pour une récurrence hebdomadaire (0 = lundi … 6 = dimanche). */
+  weeklyDays: number[];
   /** Date de fin de la série (`YYYY-MM-DD`), vide = répétition sans fin. */
   recurrenceEnd: string;
 }
@@ -65,6 +67,7 @@ export function emptyDraft(): ScheduleDraft {
     end: "",
     categoryId: null,
     recurrence: "none",
+    weeklyDays: [],
     recurrenceEnd: "",
   };
 }
@@ -79,6 +82,7 @@ export function draftFromSlot(slot: Slot): ScheduleDraft {
     end: allDay ? toDateInput(slot.end) : toDateTimeInput(slot.end),
     categoryId: null,
     recurrence: "none",
+    weeklyDays: [],
     recurrenceEnd: "",
   };
 }
@@ -96,6 +100,7 @@ export function draftFromOccurrence(occurrence: Occurrence): ScheduleDraft {
       : toDateTimeInput(occurrence.end),
     categoryId: occurrence.event.categoryId,
     recurrence: occurrence.event.recurrence ?? "none",
+    weeklyDays: occurrence.event.weeklyDays ?? [weekdayIndex(occurrence.start)],
     recurrenceEnd: occurrence.event.recurrenceEnd
       ? toDateInput(new Date(occurrence.event.recurrenceEnd))
       : "",
@@ -119,6 +124,10 @@ export function draftForEdit(occurrence: Occurrence): ScheduleDraft {
       end: event.allDay ? toDateInput(end) : toDateTimeInput(end),
       categoryId: event.categoryId,
       recurrence: event.recurrence,
+      weeklyDays:
+        event.recurrence === "weekly"
+          ? event.weeklyDays ?? [weekdayIndex(occurrence.start)]
+          : [],
       recurrenceEnd: event.recurrenceEnd
         ? toDateInput(new Date(event.recurrenceEnd))
         : "",
@@ -213,6 +222,11 @@ export function eventPayload(
   draft: ScheduleDraft,
   resolved: DraftResult
 ): Omit<ScheduleEvent, "id" | "createdAt"> {
+  const weeklyDays =
+    draft.recurrence === "weekly"
+      ? [...new Set(draft.weeklyDays)].sort((a, b) => a - b)
+      : null;
+
   return {
     title: draft.title.trim(),
     note: draft.note.trim() || undefined,
@@ -221,6 +235,7 @@ export function eventPayload(
     allDay: draft.allDay,
     categoryId: draft.categoryId,
     recurrence: draft.recurrence,
+    weeklyDays: weeklyDays && weeklyDays.length > 0 ? weeklyDays : null,
     recurrenceEnd: resolveRecurrenceEnd(draft),
   };
 }

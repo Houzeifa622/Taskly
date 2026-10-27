@@ -1,5 +1,5 @@
 import type { Recurrence, ScheduleEvent } from "@/lib/db";
-import { addDays, dayKey, durationInMinutes, startOfDay, startOfWeek } from "@/lib/dates";
+import { addDays, dayKey, durationInMinutes, startOfDay, startOfWeek, weekdayIndex } from "@/lib/dates";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Garde-fou : une récurrence ne produit jamais plus d'occurrences que ça. */
@@ -72,6 +72,12 @@ function occurrenceAt(base: Date, index: number, recurrence: Recurrence): Date {
     default:
       return new Date(base);
   }
+}
+
+function sameTimeOfDay(base: Date, date: Date): Date {
+  const copy = new Date(date);
+  copy.setHours(base.getHours(), base.getMinutes(), base.getSeconds(), base.getMilliseconds());
+  return copy;
 }
 
 /** Index d'occurrence le plus proche (sans le dépasser) pour démarrer une boucle. */
@@ -153,6 +159,34 @@ export function expandEvents(
         occurrences.push(
           makeOccurrence(event, base, duration, allDay, false, 0)
         );
+      }
+      continue;
+    }
+
+    if (recurrence === "weekly") {
+      const weeklyDays = (event.weeklyDays?.length
+        ? event.weeklyDays
+        : [weekdayIndex(base)]
+      ).filter((d) => d >= 0 && d <= 6);
+      if (weeklyDays.length === 0) continue;
+
+      let weekStart = startOfWeek(fromDay);
+      const maxWeeks = 400;
+      for (let w = 0; w < maxWeeks; w += 1) {
+        for (const day of weeklyDays) {
+          const dayStart = addDays(weekStart, day);
+          const start = sameTimeOfDay(base, dayStart);
+          if (start.getTime() > limit.getTime()) continue;
+          if (start.getTime() < fromDay.getTime()) continue;
+          const key = dayKey(start);
+          if (!exceptions.has(key)) {
+            occurrences.push(
+              makeOccurrence(event, start, duration, allDay, true, w * 10 + day)
+            );
+          }
+        }
+        weekStart = addDays(weekStart, 7);
+        if (weekStart.getTime() > limit.getTime() + 7 * DAY_MS) break;
       }
       continue;
     }

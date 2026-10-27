@@ -21,10 +21,19 @@ export interface Task {
   id?: number;
   title: string;
   note?: string;
+  /** Jour d'échéance (minuit local), ou null si aucune date n'est fixée. */
   dueDate: Date | null;
+  /** Heure d'échéance « HH:MM », facultative. */
+  dueTime?: string | null;
   completed: boolean;
   priority: "low" | "normal" | "high";
   recurrence: "none" | "daily" | "weekly" | "monthly";
+  /** Dernier jour où la série se répète (vide = sans fin). */
+  recurrenceEnd?: Date | null;
+  /** Catégorie du carnet, facultative. */
+  categoryId?: number | null;
+  /** Jours (clés `dayKey`) où une occurrence récurrente a été cochée. */
+  completedDates?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -78,6 +87,14 @@ class TasklyDB extends Dexie {
       categories: "++id, name, createdAt",
       words: "++id, term, categoryId, createdAt, updatedAt",
       tasks: "++id, title, dueDate, completed, createdAt",
+      scheduleEvents: "++id, startDateTime, endDateTime, categoryId",
+      scheduleTemplates: "++id, title, createdAt",
+    });
+    // v3 : échéance horaire, catégorie et historique des coches sur les tâches.
+    this.version(3).stores({
+      categories: "++id, name, createdAt",
+      words: "++id, term, categoryId, createdAt, updatedAt",
+      tasks: "++id, title, dueDate, completed, createdAt, categoryId",
       scheduleEvents: "++id, startDateTime, endDateTime, categoryId",
       scheduleTemplates: "++id, title, createdAt",
     });

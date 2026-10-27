@@ -1,21 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { db, type Task } from "@/lib/db";
+import type { Category, Task } from "@/lib/db";
+import { db } from "@/lib/db";
 import { useRemoveAnimation } from "@/lib/useRemoveAnimation";
 import { toastWithUndo } from "@/lib/undo";
 import {
+  advanceTask,
+  dueLabel,
+  isTaskOverdue,
+  PRIORITY_LABELS,
+  RECURRENCE_LABELS,
+} from "@/lib/tasks";
+import {
   CalendarIcon,
+  CheckCircleIcon,
   FlagIcon,
   PencilIcon,
   RepeatIcon,
   TrashIcon,
 } from "@/components/icons";
-
-interface Props {
-  task: Task;
-  index?: number;
-}
 
 const PRIORITY_STYLES: Record<Task["priority"], string> = {
   low: "bg-muted text-muted-foreground",
@@ -23,45 +26,126 @@ const PRIORITY_STYLES: Record<Task["priority"], string> = {
   high: "bg-danger/10 text-danger",
 };
 
-const PRIORITY_LABELS: Record<Task["priority"], string> = {
-  low: "Faible",
-  normal: "Normale",
-  high: "Importante",
-};
-
-const RECURRENCE_LABELS: Record<Task["recurrence"], string> = {
-  none: "",
-  daily: "Quotidienne",
-  weekly: "Hebdomadaire",
-  monthly: "Mensuelle",
-};
-
 const BADGE_CLASS =
   "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-medium";
 
-export default function TaskItem({ task, index = 0 }: Props) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState(task.title);
-  // Horodatage figé au montage : évite un calcul impur pendant le rendu.
-  const [mountedAt] = useState(() => Date.now());
+/**
+ * Plie le texte (accents + casse) en conservant la correspondance avec les
+ * indices d'origine, pour surligner une recherche même sans accent.
+ */
+function fold(text: string): { value: string; map: number[] } {
+  let value = "";
+  const map: number[] = [];
+
+  for (let index = 0; index < text.length; index += 1) {
+    const folded = text[index]
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+
+    for (const char of folded) {
+      value += char;
+      map.push(index);
+    }
+  }
+
+  return { value, map };
+}
+
+function Highlight({ text, query }: { text: string; query?: string }) {
+  const term = query?.trim();
+  if (!term) return <>{text}</>;
+
+  const haystack = fold(text);
+  const needle = fold(term).value;
+  const start = needle ? haystack.value.indexOf(needle) : -1;
+  if (start < 0) return <>{text}</>;
+
+  const end = start + needle.length - 1;
+  const from = haystack.map[start];
+  const to = haystack.map[end] + 1;
+
+  return (
+    <>
+      {text.slice(0, from)}
+      <mark className="rounded bg-warning/30 px-0.5 text-inherit">
+        {text.slice(from, to)}
+      </mark>
+      {text.slice(to)}
+    </>
+  );
+}
+
+interface Props {
+  task: Task;
+  category?: Category;
+  query?: string;
+  index?: number;
+  now: Date;
+  onEdit: (task: Task) => void;
+}
+
+/**
+ * Ligne d'une tâche : case à cocher, badges (priorité, récurrence,
+ * catégorie, échéance) et actions.
+ *
+ * Une tâche récurrente ne disparaît jamais à la coche : l'occurrence est
+ * archivée et l'échéance avance à la période suivante.
+ */
+export default function TaskItem({
+  task,
+  category,
+  query,
+  index = 0,
+  now,
+  onEdit,
+}: Props) {
   const { removing, remove } = useRemoveAnimation();
 
   const id = task.id;
-
-  function startEditing() {
-    setEditTitle(task.title);
-    setIsEditing(true);
-  }
+  const due = dueLabel(task, now);
+  const overdue = isTaskOverdue(task, now);
+  const recurring = task.recurrence !== "none";
+  const completionCount = task.completedDates?.length ?? 0;
 
   async function toggleCompleted() {
     if (id === undefined) return;
+
     try {
-      await db.tasks.update(id, {
-        completed: !task.completed,
-        updatedAt: new Date(),
+      if (task.completed) {
+        await db.tasks.update(id, { completed: false, updatedAt: new Date() });
+        return;
+      }
+
+      if (!recurring) {
+        await db.tasks.update(id, { completed: true, updatedAt: new Date() });
+        return;
+      }
+
+      const { update, finished, next } = advanceTask(task, new Date());
+      await db.tasks.update(id, update);
+
+      toastWithUndo({
+        title: finished ? "Série terminée" : "Occurrence cochée",
+        description:
+          finished || !next
+            ? task.title
+            : `${task.title} · prochaine le ${next.toLocaleDateString("fr-FR", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+              })}`,
+        onUndo: async () => {
+          await db.tasks.update(id, {
+            completed: task.completed,
+            dueDate: task.dueDate,
+            completedDates: task.completedDates,
+            updatedAt: new Date(),
+          });
+        },
       });
-    } catch (e) {
-      console.error("Erreur lors de la mise à jour", e);
+    } catch (err) {
+      console.error("Erreur lors de la mise à jour", err);
     }
   }
 
@@ -77,54 +161,20 @@ export default function TaskItem({ task, index = 0 }: Props) {
           title: "Tâche supprimée",
           description: snapshot.title,
           onUndo: async () => {
-            await db.tasks.add({
-              title: snapshot.title,
-              note: snapshot.note,
-              dueDate: snapshot.dueDate,
-              completed: snapshot.completed,
-              priority: snapshot.priority,
-              recurrence: snapshot.recurrence,
-              createdAt: snapshot.createdAt,
-              updatedAt: snapshot.updatedAt,
-            });
+            const { id: _ignored, ...rest } = snapshot;
+            await db.tasks.add(rest);
           },
         });
-      } catch (e) {
-        console.error("Erreur lors de la suppression", e);
+      } catch (err) {
+        console.error("Erreur lors de la suppression", err);
       }
     });
   }
 
-  async function saveEdit() {
-    if (id === undefined) return;
-    const title = editTitle.trim();
-    if (!title) {
-      setEditTitle(task.title);
-      setIsEditing(false);
-      return;
-    }
-    try {
-      await db.tasks.update(id, { title, updatedAt: new Date() });
-      setIsEditing(false);
-    } catch (e) {
-      console.error("Erreur lors de la modification", e);
-    }
-  }
-
-  const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-  const dueLabel = dueDate
-    ? dueDate.toLocaleDateString("fr-FR", {
-        day: "numeric",
-        month: "short",
-      })
-    : null;
-  const isOverdue =
-    dueDate !== null && !task.completed && dueDate.getTime() < mountedAt;
-
   return (
     <li
       style={{ animationDelay: `${Math.min(index, 10) * 35}ms` }}
-      className={`group flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition-all duration-200 hover:border-primary/30 animate-fade-up ${
+      className={`group animate-fade-up flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition-all duration-200 hover:border-primary/30 ${
         task.completed ? "opacity-60" : ""
       } ${removing ? "scale-95 opacity-0" : ""}`}
     >
@@ -136,7 +186,9 @@ export default function TaskItem({ task, index = 0 }: Props) {
         aria-label={
           task.completed
             ? `Marquer « ${task.title} » comme à faire`
-            : `Marquer « ${task.title} » comme fait`
+            : recurring
+              ? `Cocher l'occurrence de « ${task.title} »`
+              : `Marquer « ${task.title} » comme faite`
         }
         className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors focus:ring-4 focus:ring-primary/20 focus:outline-none ${
           task.completed
@@ -160,39 +212,22 @@ export default function TaskItem({ task, index = 0 }: Props) {
       </button>
 
       <div className="min-w-0 flex-1">
-        {isEditing ? (
-          <input
-            autoFocus
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            onBlur={saveEdit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") saveEdit();
-              if (e.key === "Escape") {
-                setEditTitle(task.title);
-                setIsEditing(false);
-              }
-            }}
-            className="w-full rounded-lg border border-border bg-background px-2.5 py-1 text-body text-foreground focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
-          />
-        ) : (
-          <button
-            type="button"
-            onDoubleClick={startEditing}
-            title="Double-clic pour modifier"
-            className={`block w-full text-left text-body ${
-              task.completed
-                ? "text-muted-foreground line-through"
-                : "font-medium text-foreground"
-            }`}
-          >
-            {task.title}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => onEdit(task)}
+          className={`block w-full text-left text-body focus:ring-4 focus:ring-primary/20 focus:outline-none ${
+            task.completed
+              ? "text-muted-foreground line-through"
+              : "font-medium text-foreground"
+          }`}
+          aria-label={`Modifier « ${task.title} »`}
+        >
+          <Highlight text={task.title} query={query} />
+        </button>
 
-        {task.note && !isEditing && (
+        {task.note && (
           <p className="mt-1 line-clamp-2 text-caption text-muted-foreground">
-            {task.note}
+            <Highlight text={task.note} query={query} />
           </p>
         )}
 
@@ -202,25 +237,41 @@ export default function TaskItem({ task, index = 0 }: Props) {
             {PRIORITY_LABELS[task.priority]}
           </span>
 
-          {task.recurrence !== "none" && (
-            <span
-              className={`${BADGE_CLASS} bg-muted text-muted-foreground`}
-            >
+          {recurring && (
+            <span className={`${BADGE_CLASS} bg-muted text-muted-foreground`}>
               <RepeatIcon className="h-3 w-3" />
               {RECURRENCE_LABELS[task.recurrence]}
             </span>
           )}
 
-          {dueLabel && (
+          {category && (
+            <span className={`${BADGE_CLASS} bg-muted text-muted-foreground`}>
+              <span
+                aria-hidden
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: category.color ?? "var(--primary)" }}
+              />
+              {category.name}
+            </span>
+          )}
+
+          {due && (
             <span
-              className={`${BADGE_CLASS} ${
-                isOverdue
+              className={`${BADGE_CLASS} tabular-nums ${
+                overdue
                   ? "bg-danger/10 text-danger"
                   : "bg-muted text-muted-foreground"
               }`}
             >
               <CalendarIcon className="h-3 w-3" />
-              <span className="tabular-nums">{dueLabel}</span>
+              {due.text}
+            </span>
+          )}
+
+          {recurring && completionCount > 0 && (
+            <span className={`${BADGE_CLASS} bg-success/10 text-success`}>
+              <CheckCircleIcon className="h-3 w-3" />
+              {completionCount} fait{completionCount > 1 ? "es" : "e"}
             </span>
           )}
         </div>
@@ -229,7 +280,7 @@ export default function TaskItem({ task, index = 0 }: Props) {
       <div className="flex shrink-0 items-center gap-0.5">
         <button
           type="button"
-          onClick={startEditing}
+          onClick={() => onEdit(task)}
           className="rounded-lg p-2 text-muted-opacity transition-colors hover:bg-muted hover:text-primary focus:ring-4 focus:ring-primary/20 focus:outline-none"
           aria-label={`Modifier « ${task.title} »`}
         >

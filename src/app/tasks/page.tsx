@@ -10,7 +10,7 @@ export default function TasksPage() {
           Mes tâches
         </h1>
         <p className="mt-2 text-body text-muted-foreground">
-          Suivez ce qui reste à faire, ce qui est terminé, et filtrez par date.
+          Ce qui est dû aujourd&apos;hui d&apos;abord, puis ce qui arrive.
         </p>
       </header>
 

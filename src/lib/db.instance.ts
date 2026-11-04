@@ -13,6 +13,13 @@ export interface WordEntry {
   categoryId: number;
   definition?: string;
   usage?: string;
+  pronunciation?: string;
+  synonyms?: string;
+  antonyms?: string;
+  favorite?: boolean;
+  learned?: boolean;
+  lastReviewedAt?: Date | null;
+  reviewCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -96,6 +103,13 @@ class TasklyDB extends Dexie {
     this.version(4).stores({
       categories: "++id, name, createdAt",
       words: "++id, term, categoryId, createdAt, updatedAt",
+      tasks: "++id, title, dueDate, completed, createdAt, categoryId",
+      scheduleEvents: "++id, startDateTime, endDateTime, categoryId",
+      scheduleTemplates: "++id, title, createdAt",
+    });
+    this.version(5).stores({
+      categories: "++id, name, createdAt",
+      words: "++id, term, categoryId, createdAt, updatedAt, favorite, learned",
       tasks: "++id, title, dueDate, completed, createdAt, categoryId",
       scheduleEvents: "++id, startDateTime, endDateTime, categoryId",
       scheduleTemplates: "++id, title, createdAt",

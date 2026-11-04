@@ -1,16 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { db, type WordEntry } from "@/lib/db";
 import { useLiveQuery } from "@/lib/useLiveQuery";
-import { ArrowLeftIcon } from "@/components/icons";
+import { ArrowLeftIcon, PencilIcon } from "@/components/icons";
 import WordDetailCard from "@/components/WordDetailCard";
+import WordEntryModal from "@/components/WordEntryModal";
 
 interface Props {
   wordId: number;
 }
 
 export default function WordDetail({ wordId }: Props) {
+  const [editing, setEditing] = useState(false);
   const { data: word, loading } = useLiveQuery<WordEntry | undefined>(
     () => db.words.get(wordId),
     [wordId]
@@ -46,17 +49,34 @@ export default function WordDetail({ wordId }: Props) {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
-      <Link
-        href={`/categories/${word.categoryId}`}
-        className="inline-flex items-center gap-1.5 rounded-lg text-body text-muted-foreground transition-colors hover:text-primary"
-      >
-        <ArrowLeftIcon className="h-4 w-4" />
-        Retour à la catégorie
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link
+          href={`/categories/${word.categoryId}`}
+          className="inline-flex items-center gap-1.5 rounded-lg text-body text-muted-foreground transition-colors hover:text-primary"
+        >
+          <ArrowLeftIcon className="h-4 w-4" />
+          Retour à la catégorie
+        </Link>
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-body font-medium text-foreground hover:bg-muted"
+        >
+          <PencilIcon className="h-4 w-4" />
+          Modifier
+        </button>
+      </div>
 
       <div className="mt-5 animate-fade-up">
         <WordDetailCard word={word} />
       </div>
+
+      {editing && (
+        <WordEntryModal
+          word={word}
+          onClose={() => setEditing(false)}
+        />
+      )}
     </div>
   );
 }

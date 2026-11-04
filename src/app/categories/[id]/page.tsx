@@ -5,7 +5,6 @@ import { Suspense } from "react";
 import { useParams } from "next/navigation";
 import { db, type Category } from "@/lib/db";
 import { useLiveQuery } from "@/lib/useLiveQuery";
-import WordEntryForm from "@/components/WordEntryForm";
 import WordList from "@/components/WordList";
 import { ArrowLeftIcon } from "@/components/icons";
 
@@ -65,10 +64,6 @@ function CategoryContent() {
         <h1 className="text-title font-bold tracking-tight text-foreground">
           {category.name}
         </h1>
-      </div>
-
-      <div className="mt-6">
-        <WordEntryForm categoryId={category.id} />
       </div>
 
       <WordList

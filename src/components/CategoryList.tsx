@@ -3,14 +3,17 @@
 import { useMemo, useState } from "react";
 import { db, type Category, type WordEntry } from "@/lib/db";
 import { useLiveQuery } from "@/lib/useLiveQuery";
-import { PlusIcon } from "@/components/icons";
+import { PlusIcon, SearchIcon } from "@/components/icons";
 import CategoryItem from "@/components/CategoryItem";
 import CollapsibleForm from "@/components/CollapsibleForm";
 import EmptyState from "@/components/EmptyState";
-import { EmptyNotebookIllustration } from "@/components/illustrations";
+import { EmptyNotebookIllustration, EmptySearchIllustration } from "@/components/illustrations";
 import { useOpenFormSignal } from "@/lib/openForm";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { toastWithUndo } from "@/lib/undo";
+import { matchesWordQuery } from "@/lib/words";
+import WordDetailModal from "@/components/WordDetailModal";
+import Link from "next/link";
 
 const PALETTE = [
   { name: "Indigo", value: "#6366f1" },
@@ -26,6 +29,8 @@ export default function CategoryList() {
   const [color, setColor] = useState(PALETTE[0].value);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [selectedWord, setSelectedWord] = useState<WordEntry | null>(null);
   // Ouverture automatique lorsqu'il fait suite à un clic sur « + » (PWA).
   const signal = useOpenFormSignal("word");
 
@@ -50,6 +55,22 @@ export default function CategoryList() {
     }
     return map;
   }, [words]);
+
+  const stats = useMemo(() => {
+    const allWords = words ?? [];
+    const favorites = allWords.filter((w) => w.favorite).length;
+    const learned = allWords.filter((w) => w.learned).length;
+    const toLearn = allWords.filter((w) => !w.learned).length;
+    return { total: allWords.length, favorites, learned, toLearn };
+  }, [words]);
+
+  const globalResults = useMemo(() => {
+    if (!globalSearch.trim()) return [];
+    const allWords = words ?? [];
+    return allWords
+      .filter((w) => matchesWordQuery(w, globalSearch))
+      .slice(0, 20);
+  }, [words, globalSearch]);
 
   async function addCategory(e: React.FormEvent) {
     e.preventDefault();
@@ -108,6 +129,13 @@ export default function CategoryList() {
                 categoryId: newId,
                 definition: word.definition,
                 usage: word.usage,
+                pronunciation: word.pronunciation,
+                synonyms: word.synonyms,
+                antonyms: word.antonyms,
+                favorite: word.favorite,
+                learned: word.learned,
+                reviewCount: word.reviewCount ?? 0,
+                lastReviewedAt: word.lastReviewedAt ?? null,
                 createdAt: word.createdAt,
                 updatedAt: word.updatedAt,
               }))
@@ -122,16 +150,177 @@ export default function CategoryList() {
     }
   }
 
+  function exportData() {
+    try {
+      const data = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        categories: rawCategories ?? [],
+        words: words ?? [],
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `taskly-carnet-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toastSuccess("Export réussi", "Fichier JSON téléchargé");
+    } catch (err) {
+      console.error(err);
+      toastError("Erreur lors de l'export");
+    }
+  }
+
+  async function importData(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      if (!Array.isArray(data.categories) || !Array.isArray(data.words)) {
+        throw new Error("Format invalide");
+      }
+
+      // Import categories
+      for (const cat of data.categories) {
+        const exists = await db.categories.where('name').equals(cat.name).first();
+        if (!exists) {
+          await db.categories.add({
+            name: cat.name,
+            color: cat.color,
+            createdAt: new Date(cat.createdAt),
+          });
+        }
+      }
+
+      // Refresh categories to get new IDs
+      const allCats = await db.categories.toArray();
+      const catMap = new Map(allCats.map(c => [c.name, c.id]));
+
+      // Import words
+      for (const word of data.words) {
+        const catId = catMap.get(word.categoryName) || word.categoryId;
+        if (!catId) continue;
+        await db.words.add({
+          term: word.term,
+          categoryId: catId,
+          definition: word.definition,
+          usage: word.usage,
+          pronunciation: word.pronunciation,
+          synonyms: word.synonyms,
+          antonyms: word.antonyms,
+          favorite: word.favorite || false,
+          learned: word.learned || false,
+          reviewCount: word.reviewCount || 0,
+          lastReviewedAt: word.lastReviewedAt ? new Date(word.lastReviewedAt) : null,
+          createdAt: new Date(word.createdAt),
+          updatedAt: new Date(word.updatedAt || word.createdAt),
+        });
+      }
+
+      toastSuccess("Import réussi", `${data.words.length} entrée(s) importée(s)`);
+      e.target.value = '';
+    } catch (err) {
+      console.error(err);
+      toastError("Erreur lors de l'import", "Vérifiez le format du fichier");
+      e.target.value = '';
+    }
+  }
+
   return (
     <section className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
       <header className="mb-8">
-        <h1 className="text-title font-bold tracking-tight text-foreground">
-          Mon carnet
-        </h1>
-        <p className="mt-2 text-body text-muted-foreground">
-          Créez une catégorie par thème, puis ajoutez-y vos mots et phrases.
-        </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-title font-bold tracking-tight text-foreground">
+              Mon carnet
+            </h1>
+            <p className="mt-2 text-body text-muted-foreground">
+              Créez une catégorie par thème, puis ajoutez-y vos mots et phrases.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={exportData}
+              className="rounded-lg border border-border px-3 py-1.5 text-caption font-medium text-foreground hover:bg-muted"
+            >
+              Exporter
+            </button>
+            <label className="cursor-pointer rounded-lg border border-border px-3 py-1.5 text-caption font-medium text-foreground hover:bg-muted">
+              Importer
+              <input type="file" accept=".json" onChange={importData} className="hidden" />
+            </label>
+          </div>
+        </div>
+        {stats.total > 0 && (
+          <div className="mt-4 flex flex-wrap gap-3 text-caption text-muted-foreground">
+            <span>{stats.total} entrée{stats.total > 1 ? "s" : ""}</span>
+            <span>•</span>
+            <span>{stats.favorites} favori{stats.favorites > 1 ? "s" : ""}</span>
+            <span>•</span>
+            <span>{stats.learned} appris</span>
+            <span>•</span>
+            <span>{stats.toLearn} à réviser</span>
+          </div>
+        )}
       </header>
+
+      {stats.total > 0 && (
+        <div className="mb-6">
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted-opacity" />
+            <input
+              type="search"
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder="Recherche globale dans tout le carnet..."
+              className="w-full rounded-xl border border-border bg-background py-2.5 pr-4 pl-10 text-body text-foreground placeholder:text-muted-opacity transition-colors focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
+            />
+          </div>
+          {globalSearch.trim() && (
+            <div className="mt-3 rounded-xl border border-border bg-card shadow-sm">
+              {globalResults.length === 0 ? (
+                <div className="p-4 text-center text-body text-muted-foreground">
+                  Aucun résultat
+                </div>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {globalResults.map((word) => {
+                    const cat = categories.find(c => c.id === word.categoryId);
+                    return (
+                      <li key={word.id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedWord(word)}
+                          className="flex w-full items-center gap-3 p-3 text-left hover:bg-muted/50"
+                        >
+                          <span
+                            className="h-2 w-2 rounded-full"
+                            style={{ backgroundColor: cat?.color ?? "#6366f1" }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-foreground truncate">{word.term}</p>
+                            {word.definition && (
+                              <p className="text-caption text-muted-foreground truncate">{word.definition}</p>
+                            )}
+                          </div>
+                          <span className="text-caption text-muted-opacity">{cat?.name}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <CollapsibleForm
         key={signal}
@@ -227,6 +416,11 @@ export default function CategoryList() {
           ))}
         </ul>
       )}
+
+      <WordDetailModal
+        word={selectedWord}
+        onClose={() => setSelectedWord(null)}
+      />
     </section>
   );
 }

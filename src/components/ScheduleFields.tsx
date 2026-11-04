@@ -7,6 +7,7 @@ import {
   type ScheduleDraft,
 } from "@/lib/scheduleDraft";
 import { ClockIcon } from "@/components/icons";
+import { WEEKDAY_LABELS, weekdayIndex } from "@/lib/dates";
 
 export const FIELD_CLASS =
   "w-full rounded-xl border border-border bg-background px-4 py-2.5 text-body text-foreground placeholder:text-muted-opacity transition-colors focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none";
@@ -248,6 +249,14 @@ export default function ScheduleFields({
             onChange={(event) =>
               patch({
                 recurrence: event.target.value as ScheduleDraft["recurrence"],
+                weeklyDays:
+                  event.target.value === "weekly" && (!Array.isArray(draft.weeklyDays) || draft.weeklyDays.length === 0)
+                    ? [weekdayIndex(new Date(draft.start || Date.now()))]
+                    : event.target.value === "weekly"
+                      ? Array.isArray(draft.weeklyDays)
+                        ? draft.weeklyDays
+                        : [weekdayIndex(new Date(draft.start || Date.now()))]
+                      : [],
               })
             }
             className={FIELD_CLASS}
@@ -260,17 +269,52 @@ export default function ScheduleFields({
           </select>
           {draft.recurrence !== "none" && (
             <p className="mt-1.5 text-caption text-muted-opacity">
-              Le créneau se répétera automatiquement chaque{" "}
               {draft.recurrence === "daily"
-                ? "jour"
+                ? "Le créneau se répète tous les jours."
                 : draft.recurrence === "weekly"
-                  ? "semaine"
-                  : "mois"}
-              .
+                  ? "Sélectionnez un ou plusieurs jours de la semaine."
+                  : "Le créneau se répète tous les mois."}
             </p>
           )}
         </div>
       </div>
+
+      {draft.recurrence === "weekly" && (
+        <div>
+          <p className={LABEL_CLASS}>Jours de la semaine (sélection multiple)</p>
+          <div className="flex flex-wrap gap-2">
+            {WEEKDAY_LABELS.map((label, index) => {
+              const days = Array.isArray(draft.weeklyDays) ? draft.weeklyDays : [];
+              const active = days.includes(index);
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => {
+                    const current = Array.isArray(draft.weeklyDays) ? draft.weeklyDays : [];
+                    const next = active
+                      ? current.filter((d) => d !== index)
+                      : [...current, index].sort((a, b) => a - b);
+                    patch({ weeklyDays: next });
+                  }}
+                  className={`rounded-lg px-3 py-1.5 text-caption font-medium transition-colors focus:ring-4 focus:ring-primary/20 focus:outline-none ${
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border bg-card text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          {(Array.isArray(draft.weeklyDays) ? draft.weeklyDays.length : 0) === 0 && (
+            <p className="mt-1.5 text-caption text-danger">
+              Sélectionnez au moins un jour.
+            </p>
+          )}
+        </div>
+      )}
 
       {draft.recurrence !== "none" && (
         <fieldset className="rounded-xl border border-border bg-muted/40 px-3.5 py-3">

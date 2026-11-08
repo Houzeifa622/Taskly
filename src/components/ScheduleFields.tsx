@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { Category } from "@/lib/db";
 import {
   autoEnd,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/scheduleDraft";
 import { ClockIcon } from "@/components/icons";
 import { WEEKDAY_LABELS, weekdayIndex } from "@/lib/dates";
+import { removeException, clearExceptions } from "@/lib/scheduleDraft";
 
 export const FIELD_CLASS =
   "w-full rounded-xl border border-border bg-background px-4 py-2.5 text-body text-foreground placeholder:text-muted-opacity transition-colors focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none";
@@ -87,6 +89,8 @@ export default function ScheduleFields({
   idPrefix,
   error,
 }: Props) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const ids = {
     title: `${idPrefix}-title`,
     note: `${idPrefix}-note`,
@@ -223,7 +227,7 @@ export default function ScheduleFields({
               })
             }
             className={FIELD_CLASS}
-            disabled={categories.length === 0}
+            disabled={mounted ? categories.length === 0 : false}
           >
             <option value="">Aucune catégorie</option>
             {categories.map((category) => (
@@ -356,12 +360,14 @@ export default function ScheduleFields({
             )}
           </div>
 
-          {draft.recurrenceEnd && (
-            <p className="mt-2 text-caption text-muted-opacity">
-              La répétition s&apos;arrêtera après le{" "}
-              {formatLongDate(draft.recurrenceEnd)}.
-            </p>
-          )}
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => patch({ recurrence: "none", weeklyDays: [], recurrenceEnd: "", exceptions: [] })}
+              className="flex-1 rounded-lg bg-danger px-3 py-1.5 text-body font-medium text-danger-foreground hover:bg-danger/80"
+            >
+              Supprimer la récurrence
+            </button>
+          </div>
         </fieldset>
       )}
 

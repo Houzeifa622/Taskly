@@ -15,6 +15,8 @@ export interface ScheduleDraft {
   weeklyDays: number[];
   /** Date de fin de la série (`YYYY-MM-DD`), vide = répétition sans fin. */
   recurrenceEnd: string;
+  /** Jours (clés `dayKey`) dont l'occurrence récurrente a été supprimée. */
+  exceptions: string[];
 }
 
 export interface Slot {
@@ -69,7 +71,26 @@ export function emptyDraft(): ScheduleDraft {
     recurrence: "none",
     weeklyDays: [],
     recurrenceEnd: "",
+    exceptions: [],
   };
+}
+
+/** Ajoute une journée aux exceptions (supprime cette occurrence de la série). */
+export function addException(draft: ScheduleDraft, dayKey: string): ScheduleDraft {
+  return { ...draft, exceptions: [...new Set([...draft.exceptions, dayKey])] };
+}
+
+/** Retire une journée des exceptions (rétore cette occurrence dans la série). */
+export function removeException(draft: ScheduleDraft, dayKey: string): ScheduleDraft {
+  return {
+    ...draft,
+    exceptions: draft.exceptions.filter((d) => d !== dayKey),
+  };
+}
+
+/** Retire toutes les exceptions (rétore toutes les occurrences de la série). */
+export function clearExceptions(draft: ScheduleDraft): ScheduleDraft {
+  return { ...draft, exceptions: [] };
 }
 
 export function draftFromSlot(slot: Slot): ScheduleDraft {
@@ -84,10 +105,12 @@ export function draftFromSlot(slot: Slot): ScheduleDraft {
     recurrence: "none",
     weeklyDays: [],
     recurrenceEnd: "",
+    exceptions: [],
   };
 }
 
 export function draftFromOccurrence(occurrence: Occurrence): ScheduleDraft {
+  const exceptions = occurrence.event.exceptions ?? [];
   return {
     title: occurrence.event.title,
     note: occurrence.event.note ?? "",
@@ -104,6 +127,7 @@ export function draftFromOccurrence(occurrence: Occurrence): ScheduleDraft {
     recurrenceEnd: occurrence.event.recurrenceEnd
       ? toDateInput(new Date(occurrence.event.recurrenceEnd))
       : "",
+    exceptions,
   };
 }
 
@@ -113,6 +137,7 @@ export function draftFromOccurrence(occurrence: Occurrence): ScheduleDraft {
  */
 export function draftForEdit(occurrence: Occurrence): ScheduleDraft {
   const { event } = occurrence;
+  const exceptions = event.exceptions ?? [];
   if (event.recurrence && event.recurrence !== "none") {
     const start = new Date(event.startDateTime);
     const end = new Date(event.endDateTime);
@@ -131,6 +156,7 @@ export function draftForEdit(occurrence: Occurrence): ScheduleDraft {
       recurrenceEnd: event.recurrenceEnd
         ? toDateInput(new Date(event.recurrenceEnd))
         : "",
+      exceptions,
     };
   }
   return draftFromOccurrence(occurrence);
@@ -237,5 +263,6 @@ export function eventPayload(
     recurrence: draft.recurrence,
     weeklyDays: weeklyDays && weeklyDays.length > 0 ? weeklyDays : null,
     recurrenceEnd: resolveRecurrenceEnd(draft),
+    exceptions: draft.exceptions,
   };
 }

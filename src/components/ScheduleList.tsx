@@ -189,7 +189,17 @@ export default function ScheduleList() {
     setModal({ key: Date.now(), mode: "edit", occurrence });
   }
 
-  async function saveFromModal(draft: ScheduleDraft) {
+  async function handleDelete(occurrence: Occurrence) {
+    const recurring = (occurrence.event.recurrence ?? "none") !== "none";
+    if (recurring) {
+      // Pour une récurrence, ouvrir la modale pour choisir : cette occurrence ou toute la série
+      openEdit(occurrence);
+      return;
+    }
+    await deleteSeries(occurrence);
+  }
+
+  async function saveFromModal(draft: ScheduleDraft, scope?: "series" | "occurrence") {
     const resolved = resolveDraft(draft);
     const payload = eventPayload(draft, resolved);
 
@@ -199,6 +209,25 @@ export default function ScheduleList() {
       if (id === undefined) return;
 
       const recurring = (occurrence.event.recurrence ?? "none") !== "none";
+
+      if (recurring && scope === "occurrence") {
+        // Ajouter une exception pour cette occurrence, puis créer un événement indépendant
+        const previousExceptions = occurrence.event.exceptions ?? [];
+        const exceptions = [...new Set([...previousExceptions, occurrence.dayKey])];
+        await db.scheduleEvents.update(id, { exceptions });
+        await db.scheduleEvents.add({
+          ...payload,
+          recurrence: "none",
+          weeklyDays: null,
+          recurrenceEnd: null,
+          exceptions: [],
+          createdAt: new Date(),
+        });
+        setModal(null);
+        toastSuccess("Occurrence modifiée", payload.title);
+        return;
+      }
+
       await db.scheduleEvents.update(id, payload);
       setModal(null);
       toastSuccess(
@@ -395,7 +424,7 @@ export default function ScheduleList() {
               categoriesById={categoriesById}
               conflicts={conflicts}
               onEdit={openEdit}
-              onDelete={deleteSeries}
+              onDelete={handleDelete}
               onCreate={openCreateAtDay}
             />
           )}
@@ -407,7 +436,7 @@ export default function ScheduleList() {
               categoriesById={categoriesById}
               conflicts={conflicts}
               onEdit={openEdit}
-              onDelete={deleteSeries}
+              onDelete={handleDelete}
               onCreate={openCreateAtDay}
               onMoveOccurrence={moveOccurrence}
             />
@@ -446,7 +475,7 @@ export default function ScheduleList() {
               categoriesById={categoriesById}
               conflicts={conflicts}
               onEdit={openEdit}
-              onDelete={deleteSeries}
+              onDelete={handleDelete}
               onCreate={openCreateAtDay}
               hasAnyEvent={hasAnyEvent}
             />

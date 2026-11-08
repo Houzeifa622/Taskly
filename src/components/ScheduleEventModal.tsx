@@ -8,8 +8,8 @@ import type { Occurrence } from "@/lib/schedule";
 import { addDays, weekdayIndex, WEEKDAY_LABELS } from "@/lib/dates";
 import {
   draftForEdit,
+  draftFromOccurrence,
   draftFromSlot,
-  emptyDraft,
   eventPayload,
   resolveDraft,
   type ScheduleDraft,
@@ -22,6 +22,8 @@ import {
   TrashIcon,
 } from "@/components/icons";
 
+export type EditScope = "series" | "occurrence";
+
 export type ScheduleModalState =
   | { key: number; mode: "create"; slot: Slot }
   | { key: number; mode: "edit"; occurrence: Occurrence };
@@ -30,7 +32,7 @@ interface Props {
   state: ScheduleModalState;
   categories: Category[];
   onClose: () => void;
-  onSave: (draft: ScheduleDraft) => Promise<void>;
+  onSave: (draft: ScheduleDraft, scope?: EditScope) => Promise<void>;
   onDeleteOccurrence: (occurrence: Occurrence) => Promise<void>;
   onDeleteSeries: (occurrence: Occurrence) => Promise<void>;
   onDuplicate: (occurrence: Occurrence, targetDay: Date) => Promise<void>;
@@ -57,6 +59,11 @@ export default function ScheduleEventModal({
   const editing = state.mode === "edit";
   const occurrence = state.mode === "edit" ? state.occurrence : null;
 
+  const recurring =
+    occurrence?.recurring === true &&
+    (occurrence.event.recurrence ?? "none") !== "none";
+
+  const [editScope, setEditScope] = useState<EditScope>("series");
   const [draft, setDraft] = useState<ScheduleDraft>(() =>
     state.mode === "edit"
       ? draftForEdit(state.occurrence)
@@ -70,9 +77,17 @@ export default function ScheduleEventModal({
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const recurring =
-    occurrence?.recurring === true &&
-    (occurrence.event.recurrence ?? "none") !== "none";
+  function setScope(scope: EditScope) {
+    if (!occurrence || !recurring) return;
+    setEditScope(scope);
+    if (scope === "occurrence") {
+      const d = draftFromOccurrence(occurrence);
+      setDraft({ ...d, recurrence: "none", weeklyDays: [], recurrenceEnd: "", exceptions: [] });
+    } else {
+      setDraft(draftForEdit(occurrence));
+    }
+    setError(null);
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -94,7 +109,7 @@ export default function ScheduleEventModal({
     setError(null);
     setBusy(true);
     try {
-      await onSave(draft);
+      await onSave(draft, recurring ? editScope : undefined);
     } catch (err) {
       console.error(err);
       setError("Impossible d'enregistrer le créneau.");
@@ -150,19 +165,49 @@ export default function ScheduleEventModal({
     >
       <form id="schedule-event-form" onSubmit={handleSubmit}>
         {recurring && (
-          <p className="mb-4 flex items-start gap-2 rounded-lg border border-warning/25 bg-warning/10 px-3 py-2 text-caption text-foreground">
-            <RepeatIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-            <span>
-              Série récurrente : les modifications s&apos;appliquent à toutes les
-              occurrences, depuis le{" "}
-              {occurrence.event.startDateTime.toLocaleDateString("fr-FR", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
-              .
-            </span>
-          </p>
+          <div className="mb-4 rounded-lg border border-warning/25 bg-warning/10 px-3 py-2">
+            <p className="flex items-start gap-2 text-caption text-foreground">
+              <RepeatIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+              <span>
+                Série récurrente : choisissez ce que vous souhaitez modifier.
+              </span>
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setScope("occurrence")}
+                className={`rounded-lg px-3 py-1.5 text-caption font-medium transition-colors ${
+                  editScope === "occurrence"
+                    ? "bg-primary text-primary-foreground"
+                    : "border border-border bg-card text-foreground hover:bg-muted"
+                }`}
+              >
+                Cette occurrence
+              </button>
+              <button
+                type="button"
+                onClick={() => setScope("series")}
+                className={`rounded-lg px-3 py-1.5 text-caption font-medium transition-colors ${
+                  editScope === "series"
+                    ? "bg-primary text-primary-foreground"
+                    : "border border-border bg-card text-foreground hover:bg-muted"
+                }`}
+              >
+                Toute la série
+              </button>
+            </div>
+            {editScope === "occurrence" && (
+              <p className="mt-2 text-caption text-muted-foreground">
+                Seule l&apos;occurrence du{" "}
+                {occurrence?.start.toLocaleDateString("fr-FR", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}{" "}
+                sera modifiée (elle deviendra un créneau indépendant).
+              </p>
+            )}
+          </div>
         )}
 
         <ScheduleFields

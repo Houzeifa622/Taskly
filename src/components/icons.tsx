@@ -341,3 +341,24 @@ export function SunHorizonIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ArchiveIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="4" width="18" height="4" rx="1.5" />
+      <path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" />
+      <path d="M10 12h4" />
+    </svg>
+  );
+}
+
+export function ArchiveRestoreIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="4" width="18" height="4" rx="1.5" />
+      <path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" />
+      <path d="M9 16v-3.5a2.5 2.5 0 0 1 5 0V16" />
+      <path d="m12 11.5 2 2m-2-2-2 2" />
+    </svg>
+  );
+}

@@ -6,6 +6,7 @@ import { db, type Task, type ScheduleEvent, type WordEntry } from "@/lib/db";
 import { useLiveQuery } from "@/lib/useLiveQuery";
 import { expandEvents } from "@/lib/schedule";
 import { startOfDay, addDays, formatTime } from "@/lib/dates";
+import { isTaskArchived } from "@/lib/tasks";
 import { CheckCircleIcon, CalendarIcon, BookIcon, PlusIcon } from "@/components/icons";
 
 export default function Dashboard() {
@@ -20,7 +21,7 @@ export default function Dashboard() {
     const all = tasks ?? [];
     return all
       .filter((t) => {
-        if (t.completed) return false;
+        if (t.completed || isTaskArchived(t, today)) return false;
         if (!t.dueDate) return false;
         const due = startOfDay(new Date(t.dueDate));
         return due.getTime() === today.getTime();
@@ -31,7 +32,7 @@ export default function Dashboard() {
   const overdueTasks = useMemo(() => {
     const all = tasks ?? [];
     return all.filter((t) => {
-      if (t.completed) return false;
+      if (t.completed || isTaskArchived(t, today)) return false;
       if (!t.dueDate) return false;
       const due = startOfDay(new Date(t.dueDate));
       return due.getTime() < today.getTime();
@@ -50,11 +51,11 @@ export default function Dashboard() {
   }, [words]);
 
   const stats = useMemo(() => {
-    const allTasks = tasks ?? [];
+    const allTasks = (tasks ?? []).filter((t) => !isTaskArchived(t, today));
     const completed = allTasks.filter((t) => t.completed).length;
     const total = allTasks.length;
     return { completed, total };
-  }, [tasks]);
+  }, [tasks, today]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">

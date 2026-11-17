@@ -94,6 +94,70 @@ export function isTaskOverdue(task: Task, now: Date): boolean {
   return due !== null && due.getTime() < now.getTime();
 }
 
+/** L'échéance (jour) est-elle strictement antérieure à aujourd'hui ? */
+export function isDueDayPast(
+  task: Pick<Task, "dueDate">,
+  now: Date
+): boolean {
+  if (!task.dueDate) return false;
+  return (
+    startOfDay(task.dueDate).getTime() < startOfDay(now).getTime()
+  );
+}
+
+/**
+ * Une tâche est archivée si elle a été archivée manuellement, ou si son jour
+ * d'échéance est dépassé. Une tâche restaurée reste dans l'actif : la clé
+ * `archiveDismissedFor` neutralise l'archivage automatique pour l'échéance
+ * concernée.
+ */
+export function isTaskArchived(task: Task, now: Date): boolean {
+  if (task.archived === true) return true;
+  if (task.completed || !task.dueDate) return false;
+  if (!isDueDayPast(task, now)) return false;
+  return task.archiveDismissedFor !== dayKey(task.dueDate);
+}
+
+export type ArchiveReason = "manual" | "auto";
+
+/** Origine de l'archivage d'une tâche (ou null si elle est active). */
+export function archiveReason(
+  task: Task,
+  now: Date
+): ArchiveReason | null {
+  if (task.archived === true) return "manual";
+  return isTaskArchived(task, now) ? "auto" : null;
+}
+
+/** Mise à jour pour archiver manuellement une tâche. */
+export function archiveTaskUpdate(now: Date): Partial<Task> {
+  return {
+    archived: true,
+    archivedAt: now,
+    archiveDismissedFor: null,
+    updatedAt: now,
+  };
+}
+
+/**
+ * Mise à jour pour restaurer une tâche. Si elle est encore en retard, elle
+ * reste dans l'actif : l'archivage automatique est neutralisé pour cette
+ * échéance jusqu'à ce qu'elle soit modifiée.
+ */
+export function restoreTaskUpdate(task: Task, now: Date): Partial<Task> {
+  const dismissed =
+    !task.completed && task.dueDate && isDueDayPast(task, now)
+      ? dayKey(task.dueDate)
+      : null;
+
+  return {
+    archived: false,
+    archivedAt: null,
+    archiveDismissedFor: dismissed,
+    updatedAt: now,
+  };
+}
+
 /**
  * Regroupement par urgence. Le retard se juge au jour : une tâche due
  * aujourd'hui à 09h00 reste dans « Aujourd'hui » (elle est simplement
@@ -193,6 +257,8 @@ export function advanceTask(task: Task, now: Date): Advancement {
       completed: finished,
       // Série terminée : on garde la dernière échéance connue.
       dueDate: finished ? task.dueDate : next,
+      // La nouvelle échéance repart d'une base saine : plus de neutralisation.
+      archiveDismissedFor: null,
       updatedAt: now,
     },
     finished,

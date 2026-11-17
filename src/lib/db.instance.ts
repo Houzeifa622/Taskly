@@ -41,6 +41,15 @@ export interface Task {
   categoryId?: number | null;
   /** Jours (clés `dayKey`) où une occurrence récurrente a été cochée. */
   completedDates?: string[];
+  /** Tâche archivée (manuellement ou automatiquement). */
+  archived?: boolean;
+  /** Date d'archivage, pour l'affichage / le tri. */
+  archivedAt?: Date | null;
+  /**
+   * Échéance (clé `dayKey`) pour laquelle l'archivage automatique a été
+   * neutralisé : une tâche en retard restaurée reste visible dans l'actif.
+   */
+  archiveDismissedFor?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

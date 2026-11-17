@@ -11,16 +11,21 @@ import EmptyState from "@/components/EmptyState";
 import { EmptyChecklistIllustration } from "@/components/illustrations";
 import { FilterIcon, SearchIcon } from "@/components/icons";
 import {
+  archiveReason,
+  isTaskArchived,
   matchesQuery,
   sortTasks,
   taskGroup,
   TASK_GROUPS,
   TASK_SORTS,
+  type ArchiveReason,
   type TaskGroup,
   type TaskScope,
   type TaskSort,
   type TaskStatus,
 } from "@/lib/tasks";
+
+type TaskView = "active" | "archived";
 
 const STATUS_FILTERS: { value: TaskStatus; label: string }[] = [
   { value: "all", label: "Toutes" },
@@ -80,6 +85,7 @@ function Chip({
 }
 
 export default function TaskList() {
+  const [view, setView] = useState<TaskView>("active");
   const [status, setStatus] = useState<TaskStatus>("all");
   const [scope, setScope] = useState<TaskScope>("all");
   const [categoryId, setCategoryId] = useState<number | null>(null);
@@ -101,6 +107,23 @@ export default function TaskList() {
 
   const tasks = useMemo(() => rawTasks ?? [], [rawTasks]);
 
+  /**
+   * Un tâche est archivée soit manuellement, soit automatiquement parce que
+   * son jour d'échéance est passé. Le calcul est fait à l'affichage (pas de
+   * migration de données) et reste réversible via `archiveDismissedFor`.
+   */
+  const activeTasks = useMemo(
+    () => tasks.filter((task) => !isTaskArchived(task, now)),
+    [tasks, now]
+  );
+
+  const archivedTasks = useMemo(
+    () => tasks.filter((task) => isTaskArchived(task, now)),
+    [tasks, now]
+  );
+
+  const scopedTasks = view === "active" ? activeTasks : archivedTasks;
+
   const categories = useMemo(() => {
     const list = rawCategories ?? [];
     return [...list].sort((a, b) => a.name.localeCompare(b.name, "fr"));
@@ -114,7 +137,7 @@ export default function TaskList() {
     return map;
   }, [categories]);
 
-  /** Compteurs par section, sur l'ensemble des tâches (hors filtres). */
+  /** Compteurs par section, sur les tâches actives (hors filtres). */
   const groupCounts = useMemo(() => {
     const counts: Record<TaskGroup, number> = {
       overdue: 0,
@@ -124,36 +147,44 @@ export default function TaskList() {
       none: 0,
       done: 0,
     };
-    for (const task of tasks) {
+    for (const task of activeTasks) {
       counts[taskGroup(task, now)] += 1;
     }
     return counts;
-  }, [tasks, now]);
+  }, [activeTasks, now]);
 
   const stats = useMemo(() => {
-    const total = tasks.length;
-    const completed = tasks.filter((task) => task.completed).length;
+    const total = activeTasks.length;
+    const completed = activeTasks.filter((task) => task.completed).length;
     return { total, completed, pending: total - completed };
-  }, [tasks]);
+  }, [activeTasks]);
+
+  const archiveStats = useMemo(() => {
+    const total = archivedTasks.length;
+    const manual = archivedTasks.filter((task) => task.archived === true).length;
+    return { total, manual, auto: total - manual };
+  }, [archivedTasks]);
 
   const progress = stats.total
     ? Math.round((stats.completed / stats.total) * 100)
     : 0;
 
   const visible = useMemo(() => {
-    const filtered = tasks.filter((task) => {
+    const filtered = scopedTasks.filter((task) => {
       if (status === "pending" && task.completed) return false;
       if (status === "completed" && !task.completed) return false;
       if (categoryId !== null && (task.categoryId ?? null) !== categoryId) {
         return false;
       }
       if (!matchesQuery(task, query)) return false;
-      if (scope !== "all" && taskGroup(task, now) !== scope) return false;
+      if (view === "active" && scope !== "all" && taskGroup(task, now) !== scope) {
+        return false;
+      }
       return true;
     });
 
     return sortTasks(filtered, sort);
-  }, [tasks, status, categoryId, query, scope, sort, now]);
+  }, [scopedTasks, view, status, categoryId, query, scope, sort, now]);
 
   const sections = useMemo(
     () =>
@@ -164,11 +195,49 @@ export default function TaskList() {
     [visible, now]
   );
 
+  const archiveSections = useMemo(() => {
+    const groups: {
+      key: ArchiveReason;
+      label: string;
+      tone: "info" | "muted";
+      items: Task[];
+    }[] = [
+      {
+        key: "auto",
+        label: "Archivées automatiquement",
+        tone: "info",
+        items: [],
+      },
+      {
+        key: "manual",
+        label: "Archivées manuellement",
+        tone: "muted",
+        items: [],
+      },
+    ];
+
+    for (const task of visible) {
+      const reason = archiveReason(task, now);
+      if (reason) groups[reason === "auto" ? 0 : 1].items.push(task);
+    }
+
+    return groups.filter((group) => group.items.length > 0);
+  }, [visible, now]);
+
   const activeFilters =
-    (scope !== "all" ? 1 : 0) + (categoryId !== null ? 1 : 0);
+    (view === "active" && scope !== "all" ? 1 : 0) +
+    (categoryId !== null ? 1 : 0);
 
   const isFiltered =
-    status !== "all" || scope !== "all" || categoryId !== null || query !== "";
+    status !== "all" ||
+    (view === "active" && scope !== "all") ||
+    categoryId !== null ||
+    query !== "";
+
+  function changeView(next: TaskView) {
+    setView(next);
+    setScope("all");
+  }
 
   function resetFilters() {
     setStatus("all");
@@ -179,20 +248,85 @@ export default function TaskList() {
 
   return (
     <section className="mt-8">
+      {/* Bascule Actives / Archives */}
+      <div
+        role="tablist"
+        aria-label="Vue des tâches"
+        className="mb-4 flex gap-1 rounded-xl border border-border bg-card p-1 shadow-sm"
+      >
+        {(
+          [
+            { value: "active", label: "Actives", count: activeTasks.length },
+            {
+              value: "archived",
+              label: "Archives",
+              count: archivedTasks.length,
+            },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            role="tab"
+            aria-selected={view === tab.value}
+            onClick={() => changeView(tab.value)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-body font-medium transition-colors focus:ring-4 focus:ring-primary/20 focus:outline-none ${
+              view === tab.value
+                ? "bg-primary-soft text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            {tab.label}
+            <span
+              className={`rounded-full px-1.5 text-caption font-semibold tabular-nums ${
+                view === tab.value
+                  ? "bg-primary/10 text-primary"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Total", value: stats.total, className: "text-foreground" },
-          {
-            label: "À faire",
-            value: stats.pending,
-            className: "text-info",
-          },
-          {
-            label: "Faites",
-            value: stats.completed,
-            className: "text-success",
-          },
-        ].map((stat) => (
+        {(view === "active"
+          ? [
+              {
+                label: "Total",
+                value: stats.total,
+                className: "text-foreground",
+              },
+              {
+                label: "À faire",
+                value: stats.pending,
+                className: "text-info",
+              },
+              {
+                label: "Faites",
+                value: stats.completed,
+                className: "text-success",
+              },
+            ]
+          : [
+              {
+                label: "Archivées",
+                value: archiveStats.total,
+                className: "text-foreground",
+              },
+              {
+                label: "Auto",
+                value: archiveStats.auto,
+                className: "text-info",
+              },
+              {
+                label: "Manuelles",
+                value: archiveStats.manual,
+                className: "text-muted-foreground",
+              },
+            ]
+        ).map((stat) => (
           <div
             key={stat.label}
             className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
@@ -209,7 +343,7 @@ export default function TaskList() {
         ))}
       </div>
 
-      {stats.total > 0 && (
+      {view === "active" && stats.total > 0 && (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-success transition-[width] duration-300"
@@ -226,8 +360,16 @@ export default function TaskList() {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Rechercher une tâche…"
-            aria-label="Rechercher une tâche"
+            placeholder={
+              view === "archived"
+                ? "Rechercher dans les archives…"
+                : "Rechercher une tâche…"
+            }
+            aria-label={
+              view === "archived"
+                ? "Rechercher dans les archives"
+                : "Rechercher une tâche"
+            }
             className={`${FIELD_CLASS} pl-9`}
           />
         </div>
@@ -286,35 +428,37 @@ export default function TaskList() {
       {/* Panneau de filtres */}
       {showFilters && (
         <div className="mt-3 space-y-4 rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm">
-          <div>
-            <p className="mb-2 text-caption font-semibold uppercase text-muted-foreground">
-              Quand
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {SCOPE_FILTERS.map((option) => {
-                const count =
-                  option.value === "all"
-                    ? tasks.length
-                    : groupCounts[option.value];
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setScope(option.value)}
-                    aria-pressed={scope === option.value}
-                    className={`${CHIP_CLASS} ${
-                      scope === option.value
-                        ? "border-primary bg-primary-soft text-primary"
-                        : "border-border bg-card text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {option.label}
-                    <span className="tabular-nums opacity-70">{count}</span>
-                  </button>
-                );
-              })}
+          {view === "active" && (
+            <div>
+              <p className="mb-2 text-caption font-semibold uppercase text-muted-foreground">
+                Quand
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {SCOPE_FILTERS.map((option) => {
+                  const count =
+                    option.value === "all"
+                      ? activeTasks.length
+                      : groupCounts[option.value];
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setScope(option.value)}
+                      aria-pressed={scope === option.value}
+                      className={`${CHIP_CLASS} ${
+                        scope === option.value
+                          ? "border-primary bg-primary-soft text-primary"
+                          : "border-border bg-card text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {option.label}
+                      <span className="tabular-nums opacity-70">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {categories.length > 0 && (
             <div>
@@ -394,12 +538,16 @@ export default function TaskList() {
             title={
               isFiltered
                 ? "Aucune tâche ne correspond"
-                : "Aucune tâche pour le moment"
+                : view === "archived"
+                  ? "Aucune tâche archivée"
+                  : "Aucune tâche pour le moment"
             }
             description={
               isFiltered
                 ? "Modifiez les filtres pour retrouver vos tâches."
-                : "Ajoutez une première tâche : elle apparaîtra ici et se synchronisera automatiquement."
+                : view === "archived"
+                  ? "Les tâches dont l'échéance est passée arrivent ici automatiquement. Vous pouvez aussi archiver une tâche manuellement depuis la liste active."
+                  : "Ajoutez une première tâche : elle apparaîtra ici et se synchronisera automatiquement."
             }
             action={
               isFiltered ? (
@@ -410,41 +558,78 @@ export default function TaskList() {
                 >
                   Réinitialiser les filtres
                 </button>
+              ) : view === "archived" ? (
+                <button
+                  type="button"
+                  onClick={() => changeView("active")}
+                  className="rounded-xl border border-border bg-card px-4 py-2 text-body font-medium text-foreground transition-colors hover:bg-muted focus:ring-4 focus:ring-primary/20 focus:outline-none"
+                >
+                  Voir les tâches actives
+                </button>
               ) : undefined
             }
           />
         </div>
       ) : (
         <div className="mt-4 space-y-4">
-          {sections.map((section) => (
-            <TaskSection
-              key={`${section.key}-${status}-${scope}`}
-              title={section.label}
-              count={section.items.length}
-              tone={SECTION_TONES[section.key]}
-              defaultOpen={
-                section.key === "done" ? status === "completed" : true
-              }
-            >
-              <ul className="space-y-2">
-                {section.items.map((task, index) => (
-                  <TaskItem
-                    key={task.id}
-                    task={task}
-                    category={
-                      task.categoryId != null
-                        ? categoryById.get(task.categoryId)
-                        : undefined
-                    }
-                    query={query}
-                    index={index}
-                    now={now}
-                    onEdit={setEditing}
-                  />
-                ))}
-              </ul>
-            </TaskSection>
-          ))}
+          {view === "active"
+            ? sections.map((section) => (
+                <TaskSection
+                  key={`${section.key}-${status}-${scope}`}
+                  title={section.label}
+                  count={section.items.length}
+                  tone={SECTION_TONES[section.key]}
+                  defaultOpen={
+                    section.key === "done" ? status === "completed" : true
+                  }
+                >
+                  <ul className="space-y-2">
+                    {section.items.map((task, index) => (
+                      <TaskItem
+                        key={task.id}
+                        task={task}
+                        category={
+                          task.categoryId != null
+                            ? categoryById.get(task.categoryId)
+                            : undefined
+                        }
+                        query={query}
+                        index={index}
+                        now={now}
+                        onEdit={setEditing}
+                      />
+                    ))}
+                  </ul>
+                </TaskSection>
+              ))
+            : archiveSections.map((section) => (
+                <TaskSection
+                  key={`${section.key}-${status}`}
+                  title={section.label}
+                  count={section.items.length}
+                  tone={section.tone}
+                >
+                  <ul className="space-y-2">
+                    {section.items.map((task, index) => (
+                      <TaskItem
+                        key={task.id}
+                        task={task}
+                        category={
+                          task.categoryId != null
+                            ? categoryById.get(task.categoryId)
+                            : undefined
+                        }
+                        query={query}
+                        index={index}
+                        now={now}
+                        onEdit={setEditing}
+                        mode="archived"
+                        archiveReason={archiveReason(task, now) ?? undefined}
+                      />
+                    ))}
+                  </ul>
+                </TaskSection>
+              ))}
         </div>
       )}
 

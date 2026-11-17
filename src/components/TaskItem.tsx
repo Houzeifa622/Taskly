@@ -6,12 +6,17 @@ import { useRemoveAnimation } from "@/lib/useRemoveAnimation";
 import { toastWithUndo } from "@/lib/undo";
 import {
   advanceTask,
+  archiveTaskUpdate,
   dueLabel,
   isTaskOverdue,
   PRIORITY_LABELS,
   RECURRENCE_LABELS,
+  restoreTaskUpdate,
+  type ArchiveReason,
 } from "@/lib/tasks";
 import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
   CalendarIcon,
   CheckCircleIcon,
   FlagIcon,
@@ -83,6 +88,10 @@ interface Props {
   index?: number;
   now: Date;
   onEdit: (task: Task) => void;
+  /** Vue courante : une tâche archivée propose « Restaurer » plutôt qu'« Archiver ». */
+  mode?: "active" | "archived";
+  /** Origine de l'archivage, affichée en badge dans la vue Archives. */
+  archiveReason?: ArchiveReason;
 }
 
 /**
@@ -99,6 +108,8 @@ export default function TaskItem({
   index = 0,
   now,
   onEdit,
+  mode = "active",
+  archiveReason,
 }: Props) {
   const { removing, remove } = useRemoveAnimation();
 
@@ -167,6 +178,58 @@ export default function TaskItem({
         });
       } catch (err) {
         console.error("Erreur lors de la suppression", err);
+      }
+    });
+  }
+
+  async function archiveTask() {
+    if (id === undefined) return;
+
+    const previous = {
+      archived: task.archived,
+      archivedAt: task.archivedAt,
+      archiveDismissedFor: task.archiveDismissedFor,
+      updatedAt: task.updatedAt,
+    };
+
+    await remove(async () => {
+      try {
+        await db.tasks.update(id, archiveTaskUpdate(new Date()));
+        toastWithUndo({
+          title: "Tâche archivée",
+          description: task.title,
+          onUndo: async () => {
+            await db.tasks.update(id, previous);
+          },
+        });
+      } catch (err) {
+        console.error("Erreur lors de l'archivage", err);
+      }
+    });
+  }
+
+  async function restoreTask() {
+    if (id === undefined) return;
+
+    const previous = {
+      archived: task.archived,
+      archivedAt: task.archivedAt,
+      archiveDismissedFor: task.archiveDismissedFor,
+      updatedAt: task.updatedAt,
+    };
+
+    await remove(async () => {
+      try {
+        await db.tasks.update(id, restoreTaskUpdate(task, new Date()));
+        toastWithUndo({
+          title: "Tâche restaurée",
+          description: task.title,
+          onUndo: async () => {
+            await db.tasks.update(id, previous);
+          },
+        });
+      } catch (err) {
+        console.error("Erreur lors de la restauration", err);
       }
     });
   }
@@ -274,10 +337,35 @@ export default function TaskItem({
               {completionCount} fait{completionCount > 1 ? "es" : "e"}
             </span>
           )}
+
+          {mode === "archived" && archiveReason && (
+            <span className={`${BADGE_CLASS} bg-muted text-muted-foreground`}>
+              <ArchiveIcon className="h-3 w-3" />
+              {archiveReason === "auto"
+                ? "Archivée automatiquement"
+                : "Archivée manuellement"}
+            </span>
+          )}
         </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
+        <button
+          type="button"
+          onClick={mode === "archived" ? restoreTask : archiveTask}
+          className="rounded-lg p-2 text-muted-opacity transition-colors hover:bg-muted hover:text-primary focus:ring-4 focus:ring-primary/20 focus:outline-none"
+          aria-label={
+            mode === "archived"
+              ? `Restaurer « ${task.title} »`
+              : `Archiver « ${task.title} »`
+          }
+        >
+          {mode === "archived" ? (
+            <ArchiveRestoreIcon className="h-4 w-4" />
+          ) : (
+            <ArchiveIcon className="h-4 w-4" />
+          )}
+        </button>
         <button
           type="button"
           onClick={() => onEdit(task)}

@@ -56,7 +56,8 @@ export default function WordItem({ word, index, onOpen, onDelete, onToggleFavori
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+      {/* Actions toujours visibles : sur tactile il n'y a pas de survol pour les révéler. */}
+      <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
         <button
           type="button"
           onClick={() => onToggleFavorite(word)}

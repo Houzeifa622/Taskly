@@ -342,6 +342,15 @@ export function SunHorizonIcon(props: IconProps) {
   );
 }
 
+export function ArrowUpIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 19V5" />
+      <path d="m5.5 11.5 6.5-6.5 6.5 6.5" />
+    </svg>
+  );
+}
+
 export function ArchiveIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

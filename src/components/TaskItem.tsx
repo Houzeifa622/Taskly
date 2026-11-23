@@ -92,6 +92,8 @@ interface Props {
   mode?: "active" | "archived";
   /** Origine de l'archivage, affichée en badge dans la vue Archives. */
   archiveReason?: ArchiveReason;
+  /** Ouvre le formulaire de restauration (nouvelle date) au lieu de restaurer directement. */
+  onRestore?: (task: Task) => void;
 }
 
 /**
@@ -110,6 +112,7 @@ export default function TaskItem({
   onEdit,
   mode = "active",
   archiveReason,
+  onRestore,
 }: Props) {
   const { removing, remove } = useRemoveAnimation();
 
@@ -211,6 +214,11 @@ export default function TaskItem({
   async function restoreTask() {
     if (id === undefined) return;
 
+    if (onRestore) {
+      onRestore(task);
+      return;
+    }
+
     const previous = {
       archived: task.archived,
       archivedAt: task.archivedAt,
@@ -220,7 +228,15 @@ export default function TaskItem({
 
     await remove(async () => {
       try {
-        await db.tasks.update(id, restoreTaskUpdate(task, new Date()));
+        await db.tasks.update(
+          id,
+          restoreTaskUpdate(
+            task,
+            new Date(),
+            task.dueDate ?? new Date(),
+            task.dueTime
+          )
+        );
         toastWithUndo({
           title: "Tâche restaurée",
           description: task.title,
@@ -353,7 +369,11 @@ export default function TaskItem({
         <button
           type="button"
           onClick={mode === "archived" ? restoreTask : archiveTask}
-          className="rounded-lg p-2 text-muted-opacity transition-colors hover:bg-muted hover:text-primary focus:ring-4 focus:ring-primary/20 focus:outline-none"
+          className={`rounded-lg p-2 transition-colors focus:ring-4 focus:outline-none ${
+            mode === "archived"
+              ? "text-danger hover:bg-danger-soft focus:ring-danger/20"
+              : "text-muted-opacity hover:bg-muted hover:text-primary focus:ring-primary/20"
+          }`}
           aria-label={
             mode === "archived"
               ? `Restaurer « ${task.title} »`

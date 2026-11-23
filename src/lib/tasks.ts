@@ -140,20 +140,26 @@ export function archiveTaskUpdate(now: Date): Partial<Task> {
 }
 
 /**
- * Mise à jour pour restaurer une tâche. Si elle est encore en retard, elle
- * reste dans l'actif : l'archivage automatique est neutralisé pour cette
- * échéance jusqu'à ce qu'elle soit modifiée.
+ * Mise à jour pour restaurer une tâche avec une nouvelle échéance choisie
+ * par l'utilisateur. Si la nouvelle date est déjà passée, la tâche reste
+ * tout de même visible dans l'actif : l'archivage automatique est neutralisé
+ * pour cette échéance (comportement choisi lors de la restauration).
  */
-export function restoreTaskUpdate(task: Task, now: Date): Partial<Task> {
-  const dismissed =
-    !task.completed && task.dueDate && isDueDayPast(task, now)
-      ? dayKey(task.dueDate)
-      : null;
+export function restoreTaskUpdate(
+  task: Task,
+  now: Date,
+  newDueDate: Date,
+  newDueTime?: string | null
+): Partial<Task> {
+  const past =
+    startOfDay(newDueDate).getTime() < startOfDay(now).getTime();
 
   return {
+    dueDate: newDueDate,
+    dueTime: newDueTime ?? null,
     archived: false,
     archivedAt: null,
-    archiveDismissedFor: dismissed,
+    archiveDismissedFor: past ? dayKey(newDueDate) : null,
     updatedAt: now,
   };
 }

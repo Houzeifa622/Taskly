@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { useRemoveAnimation } from "@/lib/useRemoveAnimation";
 import type { WordEntry } from "@/lib/db";
-import { ArrowRightIcon, TrashIcon, PencilIcon, StarIcon, CheckCircleIcon, RefreshIcon } from "@/components/icons";
+import { ArrowRightIcon, TrashIcon, StarIcon, CheckCircleIcon, RefreshIcon } from "@/components/icons";
 import { highlightText } from "@/lib/words";
 
 interface Props {
   word: WordEntry;
   index: number;
   onOpen: (word: WordEntry) => void;
-  onEdit: (word: WordEntry) => void;
   onDelete: (word: WordEntry) => void;
   onToggleFavorite: (word: WordEntry) => void;
   onToggleLearned: (word: WordEntry) => void;
@@ -18,7 +17,7 @@ interface Props {
   searchQuery?: string;
 }
 
-export default function WordItem({ word, index, onOpen, onEdit, onDelete, onToggleFavorite, onToggleLearned, onMarkReviewed, searchQuery = "" }: Props) {
+export default function WordItem({ word, index, onOpen, onDelete, onToggleFavorite, onToggleLearned, onMarkReviewed, searchQuery = "" }: Props) {
   const { removing, remove } = useRemoveAnimation();
 
   async function handleDelete() {
@@ -84,14 +83,6 @@ export default function WordItem({ word, index, onOpen, onEdit, onDelete, onTogg
           title="Enregistrer une révision"
         >
           <RefreshIcon className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => onEdit(word)}
-          className="rounded-lg p-1.5 text-muted-opacity transition-colors hover:bg-muted hover:text-primary focus:ring-4 focus:ring-primary/20 focus:outline-none"
-          aria-label={`Modifier ${word.term}`}
-        >
-          <PencilIcon className="h-4 w-4" />
         </button>
         <Link
           href={`/words/${word.id}`}

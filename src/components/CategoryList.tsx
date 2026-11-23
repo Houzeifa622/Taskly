@@ -7,12 +7,14 @@ import { PlusIcon, SearchIcon } from "@/components/icons";
 import CategoryItem from "@/components/CategoryItem";
 import CollapsibleForm from "@/components/CollapsibleForm";
 import EmptyState from "@/components/EmptyState";
+import BackToTop from "@/components/BackToTop";
 import { EmptyNotebookIllustration, EmptySearchIllustration } from "@/components/illustrations";
 import { useOpenFormSignal } from "@/lib/openForm";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { toastWithUndo } from "@/lib/undo";
 import { matchesWordQuery } from "@/lib/words";
 import WordDetailModal from "@/components/WordDetailModal";
+import WordEntryModal from "@/components/WordEntryModal";
 import Link from "next/link";
 
 const PALETTE = [
@@ -31,6 +33,7 @@ export default function CategoryList() {
   const [error, setError] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState("");
   const [selectedWord, setSelectedWord] = useState<WordEntry | null>(null);
+  const [editingWord, setEditingWord] = useState<WordEntry | null>(null);
   // Ouverture automatique lorsqu'il fait suite à un clic sur « + » (PWA).
   const signal = useOpenFormSignal("word");
 
@@ -420,7 +423,19 @@ export default function CategoryList() {
       <WordDetailModal
         word={selectedWord}
         onClose={() => setSelectedWord(null)}
+        onEdit={(word) => {
+          setSelectedWord(null);
+          setEditingWord(word);
+        }}
       />
+
+      {editingWord && (
+        <WordEntryModal
+          word={editingWord}
+          onClose={() => setEditingWord(null)}
+        />
+      )}
+      <BackToTop />
     </section>
   );
 }

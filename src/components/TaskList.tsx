@@ -7,13 +7,16 @@ import { useNow } from "@/lib/useNow";
 import TaskItem from "@/components/TaskItem";
 import TaskModal from "@/components/TaskModal";
 import TaskSection from "@/components/TaskSection";
+import RestoreTaskModal from "@/components/RestoreTaskModal";
 import EmptyState from "@/components/EmptyState";
 import { EmptyChecklistIllustration } from "@/components/illustrations";
 import { FilterIcon, SearchIcon } from "@/components/icons";
+import { toastWithUndo } from "@/lib/undo";
 import {
   archiveReason,
   isTaskArchived,
   matchesQuery,
+  restoreTaskUpdate,
   sortTasks,
   taskGroup,
   TASK_GROUPS,
@@ -93,6 +96,7 @@ export default function TaskList() {
   const [sort, setSort] = useState<TaskSort>("urgency");
   const [showFilters, setShowFilters] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
+  const [restoring, setRestoring] = useState<Task | null>(null);
 
   const now = useNow();
 
@@ -244,6 +248,37 @@ export default function TaskList() {
     setScope("all");
     setCategoryId(null);
     setQuery("");
+  }
+
+  async function restoreWithDate(
+    task: Task,
+    dueDate: Date,
+    dueTime: string | null
+  ) {
+    const id = task.id;
+    if (id === undefined) return;
+
+    const previous = {
+      dueDate: task.dueDate,
+      dueTime: task.dueTime,
+      archived: task.archived,
+      archivedAt: task.archivedAt,
+      archiveDismissedFor: task.archiveDismissedFor,
+      updatedAt: task.updatedAt,
+    };
+
+    await db.tasks.update(
+      id,
+      restoreTaskUpdate(task, new Date(), dueDate, dueTime)
+    );
+
+    toastWithUndo({
+      title: "Tâche restaurée",
+      description: task.title,
+      onUndo: async () => {
+        await db.tasks.update(id, previous);
+      },
+    });
   }
 
   return (
@@ -625,6 +660,7 @@ export default function TaskList() {
                         onEdit={setEditing}
                         mode="archived"
                         archiveReason={archiveReason(task, now) ?? undefined}
+                        onRestore={setRestoring}
                       />
                     ))}
                   </ul>
@@ -640,6 +676,17 @@ export default function TaskList() {
           onClose={() => setEditing(null)}
         />
       )}
+
+      <RestoreTaskModal
+        key={restoring?.id ?? "none"}
+        task={restoring}
+        onClose={() => setRestoring(null)}
+        onRestore={async (dueDate, dueTime) => {
+          if (!restoring) return;
+          await restoreWithDate(restoring, dueDate, dueTime);
+          setRestoring(null);
+        }}
+      />
     </section>
   );
 }

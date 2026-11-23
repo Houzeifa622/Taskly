@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import { db, type WordEntry } from "@/lib/db";
 import { useLiveQuery } from "@/lib/useLiveQuery";
-import { SearchIcon, PlusIcon, PencilIcon } from "@/components/icons";
+import { SearchIcon, PlusIcon } from "@/components/icons";
 import EmptyState from "@/components/EmptyState";
+import BackToTop from "@/components/BackToTop";
 import WordItem from "@/components/WordItem";
 import WordDetailModal from "@/components/WordDetailModal";
 import WordEntryModal from "@/components/WordEntryModal";
@@ -110,8 +111,8 @@ export default function WordList({ categoryId, categoryName }: Props) {
   }
 
   return (
-    <section className="mt-8">
-      <div className="mb-4 flex flex-col gap-3">
+    <section className="mt-4">
+      <div className="sticky top-14 z-20 -mx-4 mb-4 flex flex-col gap-3 border-b border-border/70 bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-subheading font-semibold text-foreground">
@@ -199,7 +200,6 @@ export default function WordList({ categoryId, categoryName }: Props) {
               word={word}
               index={index}
               onOpen={setSelected}
-              onEdit={setEditing}
               onDelete={deleteWord}
               onToggleFavorite={toggleFavorite}
               onToggleLearned={toggleLearned}
@@ -232,6 +232,8 @@ export default function WordList({ categoryId, categoryName }: Props) {
           onClose={() => setEditing(null)}
         />
       )}
+
+      <BackToTop />
     </section>
   );
 }

@@ -135,10 +135,10 @@ export default function Modal({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className={`relative w-full ${
+        className={`relative w-full overflow-x-hidden overflow-y-auto overscroll-contain ${
           isSheet
-            ? "max-w-lg rounded-t-3xl border-t border-border bg-card shadow-2xl"
-            : "max-w-lg rounded-2xl border border-border bg-card shadow-2xl"
+            ? "max-h-[90dvh] max-w-lg rounded-t-3xl border-t border-border bg-card shadow-2xl"
+            : "max-h-[calc(100dvh-2rem)] max-w-lg rounded-2xl border border-border bg-card shadow-2xl"
         } outline-none ${
           closing
             ? isSheet
@@ -150,7 +150,7 @@ export default function Modal({
         } transition-all duration-150`}
       >
         {(title || description) && (
-          <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-card px-5 py-4">
             <div>
               {title && (
                 <h2 className="text-heading font-semibold text-foreground">
@@ -177,7 +177,9 @@ export default function Modal({
         <div className="px-5 py-4">{children}</div>
 
         {footer && (
-          <div className="border-t border-border px-5 py-4">{footer}</div>
+          <div className="sticky bottom-0 z-10 border-t border-border bg-card px-5 py-4">
+            {footer}
+          </div>
         )}
       </div>
     </div>,
